@@ -1218,10 +1218,12 @@ function WorklogList({
   if (isLoading) return <Skeleton rows={2} />;
   if (!worklogs.length)
     return (
-      <Empty
-        title="No work logged"
-        detail="Log work from the Time tracking section in task details."
-      />
+      <div className="worklog-empty">
+        <Empty
+          title="No work logged"
+          detail="Log work from the Time tracking section in task details."
+        />
+      </div>
     );
   return (
     <>

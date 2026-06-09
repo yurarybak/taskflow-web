@@ -371,6 +371,22 @@
   gap: 12px;
 }
 
+.worklog-empty {
+  display: grid;
+  width: 100%;
+}
+
+.worklog-empty .empty {
+  width: 100%;
+}
+
+.worklog-empty .empty h3 {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  text-align: center;
+}
+
 .worklog-entry {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
