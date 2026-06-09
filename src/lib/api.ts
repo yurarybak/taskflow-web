@@ -407,9 +407,14 @@ export const api = {
     request<{ success: boolean }>(`/workspace/${workspaceId}/labels/${id}`, {
       method: "DELETE",
     }),
-  comments: async (taskId: string) =>
-    normalizeList(
-      await request<Page<Comment> | Comment[]>(`/tasks/${taskId}/comments`),
+  comments: async (
+    taskId: string,
+    filters: { page?: number; limit?: number } = {},
+  ) =>
+    normalizePage(
+      await request<Page<Comment> | Comment[]>(
+        `/tasks/${taskId}/comments${query(filters)}`,
+      ),
     ),
   createComment: (taskId: string, content: string) =>
     request<Comment>(`/tasks/${taskId}/comments`, {

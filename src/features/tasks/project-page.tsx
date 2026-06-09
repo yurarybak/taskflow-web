@@ -404,10 +404,35 @@ function Comments({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
-  const { data, isLoading } = useQuery({
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: keys.comments(taskId),
-    queryFn: () => api.comments(taskId),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => api.comments(taskId, { page: pageParam, limit: 10 }),
+    getNextPageParam: (lastPage) =>
+      lastPage.meta.page < lastPage.meta.totalPages
+        ? lastPage.meta.page + 1
+        : undefined,
   });
+  useEffect(() => {
+    if (!hasNextPage || !loadMoreRef.current) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    });
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+  const comments = [...(data?.pages.flatMap((page) => page.data) ?? [])].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
   const add = useMutation({
     mutationFn: () => api.createComment(taskId, content),
     onSuccess: () => {
@@ -477,85 +502,94 @@ function Comments({
       {isLoading ? (
         <Skeleton rows={2} />
       ) : (
-        data?.map((comment) => {
-          const canEdit = currentUser?.id === comment.authorId;
-          const canDelete =
-            canEdit || currentRole === "OWNER" || currentRole === "ADMIN";
-          const isEditing = editingId === comment.id;
-          const edited = wasUpdated(comment.createdAt, comment.updatedAt);
-          const timestamp = edited ? comment.updatedAt : comment.createdAt;
-          return (
-            <article className="comment" key={comment.id}>
-              <div className="comment-heading">
-                <Avatar
-                  label={initials(comment.author)}
-                  src={api.avatarUrl(comment.author.id)}
-                />
-                <div>
-                  <strong>{personName(comment.author)}</strong>
-                  <small>
-                    {formatDistanceToNow(new Date(timestamp), {
-                      addSuffix: true,
-                    })}
-                    {edited && " (edited)"}
-                  </small>
-                </div>
-              </div>
-              {isEditing ? (
-                <div className="comment-edit-form">
-                  <Textarea
-                    value={editingContent}
-                    onChange={(event) => setEditingContent(event.target.value)}
-                    autoFocus
+        <>
+          {comments.map((comment) => {
+            const canEdit = currentUser?.id === comment.authorId;
+            const canDelete =
+              canEdit || currentRole === "OWNER" || currentRole === "ADMIN";
+            const isEditing = editingId === comment.id;
+            const edited = wasUpdated(comment.createdAt, comment.updatedAt);
+            const timestamp = edited ? comment.updatedAt : comment.createdAt;
+            return (
+              <article className="comment" key={comment.id}>
+                <div className="comment-heading">
+                  <Avatar
+                    label={initials(comment.author)}
+                    src={api.avatarUrl(comment.author.id)}
                   />
-                  <div className="inline-actions">
-                    <Button
-                      loading={update.isPending}
-                      onClick={() => editingContent.trim() && update.mutate()}
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => {
-                        setEditingId(null);
-                        setEditingContent("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
+                  <div>
+                    <strong>{personName(comment.author)}</strong>
+                    <small>
+                      {formatDistanceToNow(new Date(timestamp), {
+                        addSuffix: true,
+                      })}
+                      {edited && " (edited)"}
+                    </small>
                   </div>
                 </div>
-              ) : (
-                <p>{comment.content}</p>
-              )}
-              {!isEditing && (canEdit || canDelete) && (
-                <div className="comment-actions">
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingId(comment.id);
-                        setEditingContent(comment.content);
-                      }}
-                    >
-                      <Edit3 size={13} /> Edit
-                    </button>
-                  )}
-                  {canDelete && (
-                    <button
-                      type="button"
-                      onClick={() => setDeleteCommentId(comment.id)}
-                    >
-                      <Trash2 size={13} /> Delete
-                    </button>
-                  )}
-                </div>
-              )}
-            </article>
-          );
-        })
+                {isEditing ? (
+                  <div className="comment-edit-form">
+                    <Textarea
+                      value={editingContent}
+                      onChange={(event) => setEditingContent(event.target.value)}
+                      autoFocus
+                    />
+                    <div className="inline-actions">
+                      <Button
+                        loading={update.isPending}
+                        onClick={() => editingContent.trim() && update.mutate()}
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditingContent("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p>{comment.content}</p>
+                )}
+                {!isEditing && (canEdit || canDelete) && (
+                  <div className="comment-actions">
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(comment.id);
+                          setEditingContent(comment.content);
+                        }}
+                      >
+                        <Edit3 size={13} /> Edit
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteCommentId(comment.id)}
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+          <div className="comment-load-more" ref={loadMoreRef}>
+            {isFetchingNextPage
+              ? "Loading more comments..."
+              : hasNextPage
+                ? "Scroll to load more"
+                : ""}
+          </div>
+        </>
       )}
       <ConfirmDialog
         open={!!deleteCommentId}

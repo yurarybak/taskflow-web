@@ -428,14 +428,28 @@ describe("api authentication", () => {
     );
   });
 
-  it("normalizes paginated comments to the array expected by the drawer", async () => {
+  it("keeps paginated comments metadata for infinite scroll", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, {
       data: [{ id: "comment-1", content: "Looks good" }],
       meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
     })));
-    await expect(api.comments("task-1")).resolves.toEqual([
-      { id: "comment-1", content: "Looks good" },
-    ]);
+    await expect(api.comments("task-1")).resolves.toEqual({
+      data: [{ id: "comment-1", content: "Looks good" }],
+      meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
+    });
+  });
+
+  it("serializes comments pagination", async () => {
+    const fetch = vi.fn().mockResolvedValue(response(200, {
+      data: [],
+      meta: { page: 2, limit: 10, total: 0, totalPages: 0 },
+    }));
+    vi.stubGlobal("fetch", fetch);
+    await api.comments("task-1", { page: 2, limit: 10 });
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3000/tasks/task-1/comments?page=2&limit=10",
+      expect.any(Object),
+    );
   });
 
   it("serializes activity pagination", async () => {
