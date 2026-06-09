@@ -267,6 +267,150 @@
   font-size: 12px;
 }
 
+.time-tracking-summary {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  padding: 6px;
+  color: #25324b;
+  text-align: left;
+  cursor: pointer;
+}
+
+.time-tracking-summary:hover,
+.time-tracking-summary:focus {
+  border-color: #d9dee7;
+  background: white;
+  outline: none;
+}
+
+.time-tracking-summary > span:not(.time-tracking-bar) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.time-tracking-summary small {
+  color: #7a8597;
+  font-size: 12px;
+}
+
+.time-tracking-bar,
+.time-progress {
+  display: flex;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.time-tracking-bar span,
+.time-progress span:first-child {
+  display: block;
+  height: 100%;
+  background: #65a30d;
+}
+
+.time-progress span:last-child {
+  display: block;
+  height: 100%;
+  background: #ea580c;
+}
+
+.time-tracking-form {
+  display: grid;
+  gap: 12px;
+}
+
+.date-time-picker-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: 8px;
+}
+
+.time-progress-label,
+.time-original {
+  margin: 0;
+  color: #596579;
+  font-size: 13px;
+}
+
+.time-original strong {
+  display: inline-flex;
+  border-radius: 4px;
+  background: #eef1f5;
+  padding: 1px 5px;
+  color: #25324b;
+}
+
+.estimate-help {
+  color: #596579;
+  font-size: 13px;
+}
+
+.estimate-help p {
+  margin-bottom: 6px;
+}
+
+.estimate-help ul {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.estimate-help li {
+  margin: 4px 0;
+}
+
+.worklog-list {
+  display: grid;
+  gap: 12px;
+}
+
+.worklog-entry {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.worklog-entry .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+
+.worklog-entry header {
+  display: grid;
+  gap: 2px;
+}
+
+.worklog-entry strong {
+  display: block;
+  font-size: 13px;
+}
+
+.worklog-entry small {
+  display: block;
+}
+
+.worklog-entry small,
+.worklog-entry p {
+  color: #687386;
+  font-size: 12px;
+}
+
+.worklog-entry p {
+  margin: 4px 0 0;
+}
+
+.worklog-entry .comment-actions {
+  margin-left: 0;
+}
+
 .input.input-invalid {
   border-color: #dc2626;
   background-color: #fff7f7;

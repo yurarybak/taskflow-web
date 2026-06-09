@@ -356,6 +356,65 @@ describe("api authentication", () => {
     );
   });
 
+  it("calls worklog endpoints", async () => {
+    const worklog = {
+      id: "worklog-1",
+      timeSpentMinutes: 120,
+      description: "Implemented service",
+      startedAt: "2026-06-08T10:00:00.000Z",
+      taskId: "task-1",
+      authorId: "user-1",
+      author: { id: "user-1", email: "me@example.com" },
+      createdAt: "2026-06-08T10:00:00.000Z",
+      updatedAt: "2026-06-08T10:00:00.000Z",
+    };
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(200, [worklog]))
+      .mockResolvedValueOnce(response(200, worklog))
+      .mockResolvedValueOnce(response(200, worklog))
+      .mockResolvedValueOnce(response(200, { ...worklog, timeSpentMinutes: 90 }))
+      .mockResolvedValueOnce(response(200, { success: true }));
+    vi.stubGlobal("fetch", fetch);
+    await api.worklogs("project-1", "task-1");
+    await api.worklog("project-1", "task-1", "worklog-1");
+    await api.createWorklog("project-1", "task-1", {
+      timeSpentMinutes: 120,
+      description: "Implemented service",
+      startedAt: "2026-06-08T10:00:00.000Z",
+      remainingEstimateMinutes: 240,
+    });
+    await api.updateWorklog("project-1", "task-1", "worklog-1", {
+      timeSpentMinutes: 90,
+    });
+    await api.removeWorklog("project-1", "task-1", "worklog-1");
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:3000/projects/project-1/tasks/task-1/worklogs",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:3000/projects/project-1/tasks/task-1/worklogs/worklog-1",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:3000/projects/project-1/tasks/task-1/worklogs",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://localhost:3000/projects/project-1/tasks/task-1/worklogs/worklog-1",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      5,
+      "http://localhost:3000/projects/project-1/tasks/task-1/worklogs/worklog-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
   it("normalizes paginated comments to the array expected by the drawer", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, {
       data: [{ id: "comment-1", content: "Looks good" }],

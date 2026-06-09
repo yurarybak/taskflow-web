@@ -80,6 +80,8 @@ export interface Task {
   startDate?: string;
   dueDate?: string;
   originalEstimateMinutes?: number | null;
+  timeSpentMinutes?: number | null;
+  remainingEstimateMinutes?: number | null;
   projectId: string;
   milestoneId?: string | null;
   milestone?: Milestone | null;
@@ -136,6 +138,17 @@ export interface TaskWatcher {
   lastName?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+export interface Worklog {
+  id: string;
+  timeSpentMinutes: number;
+  description?: string | null;
+  startedAt: string;
+  taskId: string;
+  authorId: string;
+  author: User;
+  createdAt: string;
+  updatedAt: string;
 }
 export interface TaskFilters {
   search?: string;

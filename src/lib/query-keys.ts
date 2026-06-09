@@ -14,6 +14,10 @@ export const keys = {
   labels: (id: string) => ["labels", id] as const,
   comments: (id: string) => ["comments", id] as const,
   checklist: (id: string) => ["checklist", id] as const,
+  worklogs: (projectId: string, taskId: string) =>
+    ["worklogs", projectId, taskId] as const,
+  worklog: (projectId: string, taskId: string, id: string) =>
+    ["worklog", projectId, taskId, id] as const,
   watchers: (id: string) => ["watchers", id] as const,
   activity: (id: string) => ["activity", id] as const,
   attachments: (id: string) => ["attachments", id] as const,

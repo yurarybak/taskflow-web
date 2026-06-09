@@ -15,6 +15,7 @@ import type {
   TaskFilters,
   TaskWatcher,
   User,
+  Worklog,
   Workspace,
 } from "./types";
 
@@ -453,6 +454,48 @@ export const api = {
       method: "PATCH",
       ...json({ isCompleted }),
     }),
+  worklogs: async (projectId: string, taskId: string) =>
+    normalizeList(
+      await request<Page<Worklog> | Worklog[]>(
+        `/projects/${projectId}/tasks/${taskId}/worklogs`,
+      ),
+    ),
+  worklog: (projectId: string, taskId: string, id: string) =>
+    request<Worklog>(`/projects/${projectId}/tasks/${taskId}/worklogs/${id}`),
+  createWorklog: (
+    projectId: string,
+    taskId: string,
+    body: {
+      timeSpentMinutes: number;
+      description?: string;
+      startedAt: string;
+      remainingEstimateMinutes?: number;
+    },
+  ) =>
+    request<Worklog>(`/projects/${projectId}/tasks/${taskId}/worklogs`, {
+      method: "POST",
+      ...json(body),
+    }),
+  updateWorklog: (
+    projectId: string,
+    taskId: string,
+    id: string,
+    body: Partial<{
+      timeSpentMinutes: number;
+      description: string;
+      startedAt: string;
+      remainingEstimateMinutes: number;
+    }>,
+  ) =>
+    request<Worklog>(`/projects/${projectId}/tasks/${taskId}/worklogs/${id}`, {
+      method: "PATCH",
+      ...json(body),
+    }),
+  removeWorklog: (projectId: string, taskId: string, id: string) =>
+    request<{ success: boolean }>(
+      `/projects/${projectId}/tasks/${taskId}/worklogs/${id}`,
+      { method: "DELETE" },
+    ),
   watchers: async (taskId: string) =>
     normalizeList(
       await request<Page<TaskWatcher> | TaskWatcher[]>(
