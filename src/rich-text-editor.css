@@ -1,0 +1,46 @@
+.rich-text-editor {
+  overflow: hidden;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  background: white;
+}
+
+.rich-text-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 6px;
+  border-bottom: 1px solid #edf0f3;
+  background: #f8fafc;
+}
+
+.rich-text-toolbar .button {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.rich-text-surface {
+  min-height: 140px;
+  padding: 12px;
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.55;
+  outline: none;
+}
+
+.rich-text-surface:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+}
+
+.rich-text-surface ul,
+.rich-text-surface ol,
+.editable-description ul,
+.editable-description ol {
+  margin: 8px 0 8px 22px;
+}
+
+.rich-text-surface p,
+.editable-description p {
+  margin: 0 0 8px;
+}

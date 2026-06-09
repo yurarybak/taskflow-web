@@ -1,0 +1,572 @@
+.dialog.dialog-wide {
+  width: min(96vw, 1180px);
+  padding: 24px 32px;
+}
+
+.dialog-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dialog-header-actions .button {
+  min-width: 32px;
+  height: 32px;
+  border-color: #d9dee7;
+  border-radius: 6px;
+  background: white;
+  padding: 0 8px;
+  color: #475569;
+}
+
+.dialog-header-actions .button:hover {
+  border-color: #b8c2d1;
+  background: #f8fafc;
+  color: #1d4ed8;
+}
+
+@media (min-width: 851px) {
+  .dialog.dialog-wide {
+    transform: translateX(48px);
+  }
+}
+
+.task-modal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 28px;
+}
+
+.task-modal-actions-menu {
+  position: relative;
+}
+
+.watchers-menu {
+  position: relative;
+}
+
+.watchers-trigger span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  background: #e0edff;
+  color: #1d4ed8;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.watchers-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 36;
+  width: 285px;
+  overflow: hidden;
+  border: 1px solid #e1e5eb;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 12px 30px #1018281a;
+}
+
+.watchers-primary-action,
+.watchers-add > button {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: white;
+  padding: 12px 14px;
+  color: #25324b;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.watchers-primary-action:hover,
+.watchers-add > button:hover {
+  background: #f8fafc;
+}
+
+.watchers-primary-action svg {
+  color: #2563eb;
+}
+
+.watchers-primary-action kbd {
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #f8fafc;
+  padding: 1px 5px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.watchers-content {
+  border-top: 1px solid #edf0f3;
+  padding: 12px 14px;
+}
+
+.watchers-content h4 {
+  margin: 0 0 10px;
+  color: #25324b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.watchers-content p,
+.watchers-add-list p {
+  margin: 0;
+  color: #7a8597;
+  font-size: 13px;
+}
+
+.watcher-row,
+.watchers-add-list button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.watcher-row {
+  margin-top: 8px;
+}
+
+.watcher-row .avatar,
+.watchers-add-list .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+
+.watcher-row > span,
+.watchers-add-list span {
+  overflow: hidden;
+  color: #25324b;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watcher-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.watcher-row button:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.watchers-add {
+  border-top: 1px solid #edf0f3;
+}
+
+.watchers-add-list {
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 6px;
+}
+
+.watchers-add-list button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: white;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.watchers-add-list button:hover {
+  background: #f3f4f6;
+}
+
+.task-modal-actions-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 35;
+  min-width: 150px;
+  overflow: hidden;
+  border: 1px solid #e1e5eb;
+  border-radius: 7px;
+  background: white;
+  box-shadow: 0 12px 30px #1018281a;
+}
+
+.task-modal-actions-popover button {
+  width: 100%;
+  border: 0;
+  background: white;
+  padding: 9px 12px;
+  color: #25324b;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.task-modal-actions-popover button:hover {
+  background: #f3f4f6;
+}
+
+.task-modal-actions-popover button.danger {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.task-modal-actions-popover button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.task-modal-main,
+.task-modal-side {
+  min-width: 0;
+}
+
+.task-modal-main {
+  display: grid;
+  gap: 20px;
+}
+
+.task-modal-main h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.task-modal-side {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.editable-title {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  text-align: left;
+  color: #172033;
+  font-size: 24px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  cursor: text;
+}
+
+.task-title-input {
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.title-edit-block {
+  display: grid;
+  gap: 6px;
+}
+
+.title-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.title-edit-actions .button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.editable-description {
+  width: 100%;
+  min-height: 110px;
+  border: 1px solid #e1e5eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+  text-align: left;
+  color: #596579;
+  line-height: 1.55;
+  cursor: text;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.checklist-section {
+  display: grid;
+  gap: 10px;
+}
+
+.checklist-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.checklist-heading h3 {
+  margin: 0;
+}
+
+.checklist-heading > span {
+  color: #687386;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.checklist-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef1f5;
+}
+
+.checklist-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+  transition: width 0.2s ease;
+}
+
+.checklist-add-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.checklist-list {
+  display: grid;
+  gap: 6px;
+}
+
+.checklist-empty {
+  margin: 4px 0 0;
+  color: #7a8597;
+  font-size: 13px;
+}
+
+.checklist-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid #edf0f3;
+  border-radius: 7px;
+  background: white;
+  padding: 5px 6px;
+}
+
+.checklist-item:hover {
+  border-color: #d9dee7;
+  background: #f8fafc;
+}
+
+.checklist-item.dragging {
+  opacity: 0.55;
+  background: #eff6ff;
+}
+
+.checklist-item.drop-before::before,
+.checklist-item.drop-after::after {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background: #2563eb;
+  content: "";
+}
+
+.checklist-item.drop-before::before {
+  top: -5px;
+}
+
+.checklist-item.drop-after::after {
+  bottom: -5px;
+}
+
+.checklist-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  cursor: grab;
+}
+
+.checklist-drag-handle:active {
+  cursor: grabbing;
+}
+
+.checklist-item-title {
+  min-width: 0;
+  color: #25324b;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.checklist-item.completed .checklist-item-title {
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+
+.checklist-item-actions {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 1;
+}
+
+.checklist-item-actions .button,
+.checklist-edit-form .button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
+.checklist-edit-form {
+  display: grid;
+  grid-column: 3 / -1;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 4px;
+}
+
+.comment-form {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.comment-form .inline-actions {
+  margin-top: 0;
+}
+
+.comment-composer-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  width: 100%;
+}
+
+.comment-composer-row > .avatar {
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.comment-composer-body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.activity-tabs {
+  display: inline-flex;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid #d9dee7;
+  border-radius: 4px;
+  background: white;
+}
+
+.activity-tabs button {
+  min-width: 72px;
+  border: 0;
+  border-right: 1px solid #d9dee7;
+  background: transparent;
+  padding: 7px 14px;
+  color: #596579;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.activity-tabs button:last-child {
+  border-right: 0;
+}
+
+.activity-tabs button.active {
+  background: #dbeafe;
+  color: #1d4ed8;
+  box-shadow: inset 0 0 0 1px #60a5fa;
+}
+
+.history-list {
+  display: grid;
+  gap: 0;
+}
+
+.comment p,
+.history-entry p {
+  margin-left: 36px;
+  color: #596579;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0 0 36px;
+}
+
+.comment-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #687386;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.comment-actions button:hover {
+  color: #1d4ed8;
+}
+
+.comment-edit-form {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0 36px;
+}
+
+.confirm-description {
+  color: #596579;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 820px) {
+  .task-modal {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,123 @@
+.project-tabs {
+  margin-top: -8px;
+}
+
+.milestones-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.milestones-toolbar h2 {
+  margin-bottom: 5px;
+  font-size: 18px;
+}
+
+.milestones-toolbar p {
+  margin: 0;
+  color: #687386;
+  font-size: 13px;
+}
+
+.milestone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.milestone-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid #e1e5eb;
+  border-radius: 9px;
+  background: white;
+  padding: 16px;
+  box-shadow: 0 4px 15px #10182808;
+}
+
+.milestone-card.completed {
+  background: #fbfdfc;
+  border-color: #bbf7d0;
+}
+
+.milestone-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.milestone-card h3 {
+  margin: 8px 0 0;
+  color: #172033;
+  font-size: 16px;
+}
+
+.milestone-card p {
+  margin: 0;
+  color: #596579;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.milestone-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.milestone-dates span {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #edf0f3;
+  border-radius: 7px;
+  background: #f8fafc;
+  padding: 8px;
+  color: #7a8597;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.milestone-dates strong {
+  color: #25324b;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.milestone-progress {
+  display: grid;
+  gap: 6px;
+}
+
+.milestone-progress > div {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef1f5;
+}
+
+.milestone-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+}
+
+.milestone-progress small {
+  color: #7a8597;
+  font-size: 12px;
+}
+
+@media (max-width: 620px) {
+  .milestones-toolbar {
+    display: grid;
+  }
+
+  .milestone-dates {
+    grid-template-columns: 1fr;
+  }
+}

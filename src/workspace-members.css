@@ -1,0 +1,17 @@
+.member-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.member-cell .avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  font-size: 12px;
+}
+
+.member-cell strong,
+.member-cell small {
+  display: block;
+}

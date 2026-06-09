@@ -1,0 +1,7 @@
+node_modules
+dist
+.env
+coverage
+
+# add history to ignore list
+.history

@@ -1,0 +1,269 @@
+.task-filters {
+  position: relative;
+  z-index: 4;
+  align-items: center;
+  gap: 8px;
+  overflow: visible;
+  padding-bottom: 2px;
+}
+
+.task-filters .task-search {
+  flex: 1 1 360px;
+  max-width: 460px;
+  min-width: 220px;
+  margin-right: 0;
+}
+
+.task-filter-popover {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.task-filter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  height: 35px;
+  min-width: 132px;
+  border: 1px solid #d9dee7;
+  border-radius: 6px;
+  background: white;
+  color: #25324b;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.task-filter-button svg:last-child {
+  flex: none;
+}
+
+.task-filter-button:hover,
+.task-filter-button.active {
+  border-color: #9ab6ed;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.task-filter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 285px;
+  max-height: 310px;
+  overflow: auto;
+  border: 1px solid #e1e5eb;
+  border-radius: 8px;
+  background: white;
+  padding: 6px;
+  box-shadow: 0 12px 30px #1018281a;
+}
+
+.task-filter-menu.compact {
+  width: 190px;
+}
+
+.task-filter-menu p {
+  margin: 8px;
+  color: #7a8597;
+  font-size: 13px;
+}
+
+.saved-filter-menu {
+  width: 300px;
+}
+
+.saved-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px 32px;
+  align-items: center;
+  gap: 2px;
+}
+
+.saved-filter-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  background: white;
+  padding: 8px;
+  color: #25324b;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.saved-filter-row button:first-child {
+  justify-content: flex-start;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-filter-row button:hover {
+  background: #f8fafc;
+}
+
+.saved-filter-row button:last-child:hover {
+  color: #dc2626;
+}
+
+.saved-filter-footer {
+  margin-top: 6px;
+  border-top: 1px solid #edf0f3;
+  padding-top: 6px;
+}
+
+.saved-filter-footer .button {
+  width: 100%;
+}
+
+.active-saved-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 240px;
+  height: 35px;
+  flex: 0 0 auto;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  padding: 0 8px 0 12px;
+  color: #1d4ed8;
+  font-size: 12px;
+}
+
+.active-saved-filter.modified {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.active-saved-filter span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-saved-filter button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+}
+
+.active-saved-filter button:hover {
+  background: #ffffff99;
+}
+
+.saved-filter-current-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #596579;
+  font-size: 13px;
+}
+
+.task-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.task-filter-option .priority-icon,
+.task-filter-option .type-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.milestone-filter-menu .task-filter-option svg {
+  flex: none;
+  color: #64748b;
+}
+
+.task-filter-option:hover {
+  background: #f8fafc;
+}
+
+.assignee-filter-option .avatar {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  font-size: 11px;
+}
+
+.assignee-filter-empty-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  background: #eef1f5;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.assignee-filter-option > span {
+  min-width: 0;
+}
+
+.assignee-filter-option strong,
+.assignee-filter-option small {
+  display: block;
+}
+
+.assignee-filter-option strong {
+  color: #25324b;
+  font-size: 13px;
+}
+
+.assignee-filter-option small {
+  overflow: hidden;
+  color: #7a8597;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-filters .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.task-filters .view-switch {
+  display: inline-flex;
+  margin-left: auto;
+  gap: 4px;
+}
+
+@media (max-width: 760px) {
+  .task-filters {
+    flex-wrap: nowrap;
+  }
+
+  .task-filters .task-search {
+    flex-basis: 260px;
+    min-width: 260px;
+  }
+}

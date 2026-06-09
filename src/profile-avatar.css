@@ -1,0 +1,89 @@
+.avatar-upload {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex: none;
+  cursor: pointer;
+}
+
+.avatar-upload .avatar {
+  width: 64px;
+  height: 64px;
+}
+
+.avatar-upload input {
+  display: none;
+}
+
+.avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #11182799;
+  color: white;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.avatar-upload:hover .avatar-overlay,
+.avatar-upload:focus-within .avatar-overlay {
+  opacity: 1;
+}
+
+.avatar-settings > div small {
+  display: block;
+  margin: 4px 0 8px;
+  color: #7a8597;
+  font-size: 12px;
+}
+
+.sidebar footer .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+
+.task-assignee {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+.task-assignee .avatar {
+  width: 24px;
+  height: 24px;
+  border: 1px solid white;
+  font-size: 10px;
+}
+
+.task-assignee.unassigned {
+  border: 1px dashed #cbd5e1;
+  border-radius: 50%;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.comment-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-heading .avatar {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  font-size: 11px;
+}
+
+.comment-heading strong,
+.comment-heading small {
+  display: block;
+  margin: 0;
+}
