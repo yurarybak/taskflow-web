@@ -465,6 +465,60 @@ describe("api authentication", () => {
     );
   });
 
+  it("calls notification endpoints", async () => {
+    const notification = {
+      id: "notification-1",
+      type: "TASK_ASSIGNED",
+      title: "You were assigned to a task",
+      message: "Task: Implement auth flow",
+      data: { workspaceId: "workspace-1", projectId: "project-1" },
+      readAt: null,
+      userId: "user-1",
+      createdAt: "2026-06-09T10:00:00.000Z",
+    };
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(200, {
+        data: [notification],
+        meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      }))
+      .mockResolvedValueOnce(response(200, { count: 1 }))
+      .mockResolvedValueOnce(response(200, { ...notification, readAt: "2026-06-09T10:01:00.000Z" }))
+      .mockResolvedValueOnce(response(200, { success: true }))
+      .mockResolvedValueOnce(response(200, { success: true }));
+    vi.stubGlobal("fetch", fetch);
+    await api.notifications({ page: 1, limit: 10, unreadOnly: true });
+    await api.unreadNotifications();
+    await api.markNotificationRead("notification-1");
+    await api.markAllNotificationsRead();
+    await api.removeNotification("notification-1");
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:3000/notifications?page=1&limit=10&unreadOnly=true",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:3000/notifications/unread-count",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:3000/notifications/notification-1/read",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://localhost:3000/notifications/read-all",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      5,
+      "http://localhost:3000/notifications/notification-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
   it("builds the public user avatar route", () => {
     expect(api.avatarUrl("user-1")).toBe("http://localhost:3000/users/user-1/avatar");
   });

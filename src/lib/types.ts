@@ -150,6 +150,16 @@ export interface Worklog {
   createdAt: string;
   updatedAt: string;
 }
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message?: string | null;
+  data?: Record<string, unknown> | null;
+  readAt?: string | null;
+  userId: string;
+  createdAt: string;
+}
 export interface TaskFilters {
   search?: string;
   statuses?: TaskStatus[];

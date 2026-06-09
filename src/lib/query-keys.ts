@@ -9,6 +9,9 @@ export const keys = {
   savedFilters: (projectId: string) => ["saved-filters", projectId] as const,
   savedFilter: (projectId: string, id: string) =>
     ["saved-filter", projectId, id] as const,
+  notifications: (unreadOnly = false) =>
+    ["notifications", unreadOnly] as const,
+  unreadNotifications: ["notifications", "unread-count"] as const,
   tasks: (id: string, filters: object = {}) => ["tasks", id, filters] as const,
   task: (projectId: string, id: string) => ["task", projectId, id] as const,
   labels: (id: string) => ["labels", id] as const,

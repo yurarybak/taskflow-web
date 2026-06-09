@@ -14,6 +14,7 @@ import "./select-arrow.css";
 import "./rich-text-editor.css";
 import "./workspace-members.css";
 import "./milestones.css";
+import "./notifications.css";
 const client = new QueryClient({
   defaultOptions: { queries: { staleTime: 20_000, retry: 1 } },
 });

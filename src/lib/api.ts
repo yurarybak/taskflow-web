@@ -8,6 +8,7 @@ import type {
   Label,
   Member,
   Milestone,
+  Notification,
   Page,
   Project,
   SavedTaskFilter,
@@ -165,6 +166,26 @@ export const api = {
     }),
   logoutAll: () =>
     request<{ success: boolean }>("/auth/logout-all", { method: "POST" }),
+  notifications: async (
+    filters: { page?: number; limit?: number; unreadOnly?: boolean } = {},
+  ) =>
+    normalizePage(
+      await request<Page<Notification> | Notification[]>(
+        `/notifications${query(filters)}`,
+      ),
+    ),
+  unreadNotifications: () =>
+    request<{ count: number }>("/notifications/unread-count"),
+  markNotificationRead: (id: string) =>
+    request<Notification>(`/notifications/${id}/read`, { method: "PATCH" }),
+  markAllNotificationsRead: () =>
+    request<{ success: boolean }>("/notifications/read-all", {
+      method: "PATCH",
+    }),
+  removeNotification: (id: string) =>
+    request<{ success: boolean }>(`/notifications/${id}`, {
+      method: "DELETE",
+    }),
   workspaces: async () =>
     normalizePage(await request<Page<Workspace> | Workspace[]>("/workspaces")),
   createWorkspace: (body: { name: string; description?: string }) =>
