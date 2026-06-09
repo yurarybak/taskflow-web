@@ -454,10 +454,14 @@ export const api = {
       method: "PATCH",
       ...json({ isCompleted }),
     }),
-  worklogs: async (projectId: string, taskId: string) =>
-    normalizeList(
+  worklogs: async (
+    projectId: string,
+    taskId: string,
+    filters: { page?: number; limit?: number } = {},
+  ) =>
+    normalizePage(
       await request<Page<Worklog> | Worklog[]>(
-        `/projects/${projectId}/tasks/${taskId}/worklogs`,
+        `/projects/${projectId}/tasks/${taskId}/worklogs${query(filters)}`,
       ),
     ),
   worklog: (projectId: string, taskId: string, id: string) =>
@@ -516,9 +520,14 @@ export const api = {
     request<{ success: boolean }>(`/tasks/${taskId}/watchers/${userId}`, {
       method: "DELETE",
     }),
-  activity: async (taskId: string) =>
-    normalizeList(
-      await request<Page<Activity> | Activity[]>(`/tasks/${taskId}/activity`),
+  activity: async (
+    taskId: string,
+    filters: { page?: number; limit?: number } = {},
+  ) =>
+    normalizePage(
+      await request<Page<Activity> | Activity[]>(
+        `/tasks/${taskId}/activity${query(filters)}`,
+      ),
     ),
   attachments: async (taskId: string) =>
     normalizeList(

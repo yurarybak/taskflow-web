@@ -427,6 +427,13 @@
   margin-left: 0;
 }
 
+.worklog-load-more {
+  min-height: 24px;
+  color: #7a8597;
+  text-align: center;
+  font-size: 12px;
+}
+
 .input.input-invalid {
   border-color: #dc2626;
   background-color: #fff7f7;

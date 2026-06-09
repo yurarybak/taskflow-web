@@ -415,6 +415,19 @@ describe("api authentication", () => {
     );
   });
 
+  it("serializes worklog pagination", async () => {
+    const fetch = vi.fn().mockResolvedValue(response(200, {
+      data: [],
+      meta: { page: 2, limit: 10, total: 0, totalPages: 0 },
+    }));
+    vi.stubGlobal("fetch", fetch);
+    await api.worklogs("project-1", "task-1", { page: 2, limit: 10 });
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3000/projects/project-1/tasks/task-1/worklogs?page=2&limit=10",
+      expect.any(Object),
+    );
+  });
+
   it("normalizes paginated comments to the array expected by the drawer", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, {
       data: [{ id: "comment-1", content: "Looks good" }],
@@ -423,6 +436,19 @@ describe("api authentication", () => {
     await expect(api.comments("task-1")).resolves.toEqual([
       { id: "comment-1", content: "Looks good" },
     ]);
+  });
+
+  it("serializes activity pagination", async () => {
+    const fetch = vi.fn().mockResolvedValue(response(200, {
+      data: [],
+      meta: { page: 2, limit: 10, total: 0, totalPages: 0 },
+    }));
+    vi.stubGlobal("fetch", fetch);
+    await api.activity("task-1", { page: 2, limit: 10 });
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3000/tasks/task-1/activity?page=2&limit=10",
+      expect.any(Object),
+    );
   });
 
   it("builds the public user avatar route", () => {

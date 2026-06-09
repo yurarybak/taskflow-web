@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   Blocks,
@@ -835,12 +840,38 @@ function Checklist({ taskId }: { taskId: string }) {
     </section>
   );
 }
-function History({
-  activity,
-}: {
-  activity?: Awaited<ReturnType<typeof api.activity>>;
-}) {
-  if (!activity?.length)
+function History({ taskId }: { taskId: string }) {
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: keys.activity(taskId),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => api.activity(taskId, { page: pageParam, limit: 10 }),
+    getNextPageParam: (lastPage) =>
+      lastPage.meta.page < lastPage.meta.totalPages
+        ? lastPage.meta.page + 1
+        : undefined,
+  });
+  useEffect(() => {
+    if (!hasNextPage || !loadMoreRef.current) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    });
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+  const activity = [...(data?.pages.flatMap((page) => page.data) ?? [])].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  if (isLoading) return <Skeleton rows={2} />;
+  if (!activity.length)
     return (
       <Empty title="No history yet" detail="Task changes will appear here." />
     );
@@ -865,6 +896,13 @@ function History({
           <p>{entry.type.toLowerCase().replaceAll("_", " ")}</p>
         </article>
       ))}
+      <div className="history-load-more" ref={loadMoreRef}>
+        {isFetchingNextPage
+          ? "Loading more history..."
+          : hasNextPage
+            ? "Scroll to load more"
+            : ""}
+      </div>
     </div>
   );
 }
@@ -1182,9 +1220,22 @@ function WorklogList({
   const client = useQueryClient();
   const [editWorklog, setEditWorklog] = useState<Worklog>();
   const [deleteWorklog, setDeleteWorklog] = useState<Worklog>();
-  const { data, isLoading } = useQuery({
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: keys.worklogs(projectId, task.id),
-    queryFn: () => api.worklogs(projectId, task.id),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      api.worklogs(projectId, task.id, { page: pageParam, limit: 10 }),
+    getNextPageParam: (lastPage) =>
+      lastPage.meta.page < lastPage.meta.totalPages
+        ? lastPage.meta.page + 1
+        : undefined,
   });
   const refresh = () => {
     client.invalidateQueries({ queryKey: keys.worklogs(projectId, task.id) });
@@ -1212,7 +1263,17 @@ function WorklogList({
     },
     onError: (e) => toast.error(e.message),
   });
-  const worklogs = [...(data ?? [])].sort(
+  useEffect(() => {
+    if (!hasNextPage || !loadMoreRef.current) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    });
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+  const worklogs = [...(data?.pages.flatMap((page) => page.data) ?? [])].sort(
     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
   );
   if (isLoading) return <Skeleton rows={2} />;
@@ -1263,6 +1324,13 @@ function WorklogList({
             </div>
           </article>
         ))}
+        <div className="worklog-load-more" ref={loadMoreRef}>
+          {isFetchingNextPage
+            ? "Loading more worklogs..."
+            : hasNextPage
+              ? "Scroll to load more"
+              : ""}
+        </div>
       </div>
       {editWorklog && (
         <WorklogEditDialog
@@ -1837,10 +1905,6 @@ function TaskModal({
     queryKey: keys.milestones(projectId),
     queryFn: () => api.milestones(projectId),
   });
-  const { data: activity } = useQuery({
-    queryKey: keys.activity(task.id),
-    queryFn: () => api.activity(task.id),
-  });
   const invalidate = () => {
     client.invalidateQueries({ queryKey: ["tasks", projectId] });
     client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
@@ -2218,7 +2282,7 @@ function TaskModal({
               />
             )}
             {(activityTab === "all" || activityTab === "history") && (
-              <History activity={activity} />
+              <History taskId={task.id} />
             )}
             {activityTab === "worklog" && (
               <WorklogList

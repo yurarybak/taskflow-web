@@ -524,6 +524,13 @@
   gap: 0;
 }
 
+.history-load-more {
+  min-height: 24px;
+  color: #7a8597;
+  text-align: center;
+  font-size: 12px;
+}
+
 .comment p,
 .history-entry p {
   margin-left: 36px;
