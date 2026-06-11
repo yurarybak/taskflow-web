@@ -142,9 +142,11 @@ const formatEstimate = (minutes?: number | null) => {
   if (!minutes) return "";
   const parts: string[] = [];
   let remaining = minutes;
-  (Object.entries(ESTIMATE_MINUTES) as Array<
-    [keyof typeof ESTIMATE_MINUTES, number]
-  >).forEach(([unit, unitMinutes]) => {
+  (
+    Object.entries(ESTIMATE_MINUTES) as Array<
+      [keyof typeof ESTIMATE_MINUTES, number]
+    >
+  ).forEach(([unit, unitMinutes]) => {
     const value = Math.floor(remaining / unitMinutes);
     if (!value) return;
     parts.push(`${value}${unit}`);
@@ -182,6 +184,42 @@ const wasUpdated = (createdAt?: string, updatedAt?: string) =>
   !!updatedAt &&
   Math.abs(new Date(updatedAt).getTime() - new Date(createdAt).getTime()) >
     1000;
+const mentionLabel = (member: Member) => personName(member.user);
+const displayMentionText = (value: string, members?: Member[]) =>
+  value.replace(/@\[([^\]]+)\]/g, (match, userId: string) => {
+    const member = members?.find(
+      (item) => item.user.id === userId || item.userId === userId,
+    );
+    return member ? `@${mentionLabel(member)}` : match;
+  });
+const renderMentionText = (value: string, members?: Member[]) => {
+  const parts = [];
+  let lastIndex = 0;
+  value.replace(/@\[([^\]]+)\]/g, (match, userId: string, index: number) => {
+    if (index > lastIndex) parts.push(value.slice(lastIndex, index));
+    const member = members?.find(
+      (item) => item.user.id === userId || item.userId === userId,
+    );
+    parts.push(
+      <span className="mention-chip" key={`${userId}-${index}`}>
+        @{member ? mentionLabel(member) : userId}
+      </span>,
+    );
+    lastIndex = index + match.length;
+    П;
+    return match;
+  });
+  if (lastIndex < value.length) parts.push(value.slice(lastIndex));
+  return parts.length ? parts : value;
+};
+const serializeMentionText = (value: string, members?: Member[]) =>
+  [...(members ?? [])]
+    .sort((a, b) => mentionLabel(b).length - mentionLabel(a).length)
+    .reduce(
+      (text, member) =>
+        text.replaceAll(`@${mentionLabel(member)}`, `@[${member.user.id}]`),
+      value,
+    );
 const sanitizeRichText = (value: string) =>
   value
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
@@ -283,7 +321,11 @@ function TaskForm({
         const currentMilestoneId =
           initial.milestoneId || initial.milestone?.id || "";
         if (milestoneId !== currentMilestoneId) {
-          return api.setTaskMilestone(projectId, initial.id, milestoneId || null);
+          return api.setTaskMilestone(
+            projectId,
+            initial.id,
+            milestoneId || null,
+          );
         }
         return updated;
       }
@@ -383,21 +425,130 @@ function TaskForm({
         <Button variant="secondary" type="button" onClick={onClose}>
           Cancel
         </Button>
-        <Button loading={mutation.isPending} disabled={!!parsedOriginalEstimate.error}>
+        <Button
+          loading={mutation.isPending}
+          disabled={!!parsedOriginalEstimate.error}
+        >
           Save task
         </Button>
       </div>
     </form>
   );
 }
+function MentionTextarea({
+  value,
+  members,
+  placeholder,
+  autoFocus,
+  onChange,
+}: {
+  value: string;
+  members?: Member[];
+  placeholder?: string;
+  autoFocus?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [mention, setMention] = useState<{
+    query: string;
+    start: number;
+    end: number;
+  } | null>(null);
+  const updateMention = (nextValue: string, cursor: number | null) => {
+    if (cursor === null) {
+      setMention(null);
+      return;
+    }
+    const beforeCursor = nextValue.slice(0, cursor);
+    const match = beforeCursor.match(/(?:^|\s)@([^\s@]*)$/);
+    if (!match) {
+      setMention(null);
+      return;
+    }
+    setMention({
+      query: match[1],
+      start: cursor - match[1].length - 1,
+      end: cursor,
+    });
+  };
+  const filteredMembers = mention
+    ? (members ?? [])
+        .filter((member) => {
+          const query = mention.query.toLowerCase();
+          return (
+            mentionLabel(member).toLowerCase().includes(query) ||
+            member.user.email.toLowerCase().includes(query)
+          );
+        })
+        .slice(0, 6)
+    : [];
+  const selectMember = (member: Member) => {
+    if (!mention) return;
+    const inserted = `@${mentionLabel(member)} `;
+    const nextValue =
+      value.slice(0, mention.start) + inserted + value.slice(mention.end);
+    onChange(nextValue);
+    setMention(null);
+    requestAnimationFrame(() => {
+      const cursor = mention.start + inserted.length;
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(cursor, cursor);
+    });
+  };
+  return (
+    <div className="mention-textarea">
+      <textarea
+        ref={textareaRef}
+        className="input textarea"
+        value={value}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        onChange={(event) => {
+          onChange(event.target.value);
+          updateMention(event.target.value, event.target.selectionStart);
+        }}
+        onKeyUp={(event) =>
+          updateMention(
+            event.currentTarget.value,
+            event.currentTarget.selectionStart,
+          )
+        }
+        onBlur={() => window.setTimeout(() => setMention(null), 120)}
+      />
+      {!!filteredMembers.length && (
+        <div className="mention-menu">
+          {filteredMembers.map((member) => (
+            <button
+              type="button"
+              key={member.id}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectMember(member)}
+            >
+              <Avatar
+                label={initials(member.user)}
+                src={api.avatarUrl(member.user.id)}
+              />
+              <span>
+                <strong>{mentionLabel(member)}</strong>
+                <small>{member.user.email}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function Comments({
   taskId,
   currentUser,
   currentRole,
+  members,
 }: {
   taskId: string;
   currentUser?: User;
   currentRole?: Role;
+  members?: Member[];
 }) {
   const client = useQueryClient();
   const [content, setContent] = useState("");
@@ -405,21 +556,17 @@ function Comments({
   const [editingContent, setEditingContent] = useState("");
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: keys.comments(taskId),
-    initialPageParam: 1,
-    queryFn: ({ pageParam }) => api.comments(taskId, { page: pageParam, limit: 10 }),
-    getNextPageParam: (lastPage) =>
-      lastPage.meta.page < lastPage.meta.totalPages
-        ? lastPage.meta.page + 1
-        : undefined,
-  });
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: keys.comments(taskId),
+      initialPageParam: 1,
+      queryFn: ({ pageParam }) =>
+        api.comments(taskId, { page: pageParam, limit: 10 }),
+      getNextPageParam: (lastPage) =>
+        lastPage.meta.page < lastPage.meta.totalPages
+          ? lastPage.meta.page + 1
+          : undefined,
+    });
   useEffect(() => {
     if (!hasNextPage || !loadMoreRef.current) return;
     const observer = new IntersectionObserver((entries) => {
@@ -434,7 +581,8 @@ function Comments({
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
   const add = useMutation({
-    mutationFn: () => api.createComment(taskId, content),
+    mutationFn: () =>
+      api.createComment(taskId, serializeMentionText(content, members)),
     onSuccess: () => {
       setContent("");
       client.invalidateQueries({ queryKey: keys.comments(taskId) });
@@ -445,7 +593,11 @@ function Comments({
     client.invalidateQueries({ queryKey: keys.comments(taskId) });
   const update = useMutation({
     mutationFn: () =>
-      api.updateComment(taskId, editingId || "", editingContent),
+      api.updateComment(
+        taskId,
+        editingId || "",
+        serializeMentionText(editingContent, members),
+      ),
     onSuccess: () => {
       setEditingId(null);
       setEditingContent("");
@@ -479,10 +631,11 @@ function Comments({
             src={currentUser ? api.avatarUrl(currentUser.id) : undefined}
           />
           <div className="comment-composer-body">
-            <Textarea
+            <MentionTextarea
               placeholder="Add a comment..."
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              members={members}
+              onChange={setContent}
             />
             {content.trim() && (
               <div className="inline-actions">
@@ -529,9 +682,10 @@ function Comments({
                 </div>
                 {isEditing ? (
                   <div className="comment-edit-form">
-                    <Textarea
+                    <MentionTextarea
                       value={editingContent}
-                      onChange={(event) => setEditingContent(event.target.value)}
+                      members={members}
+                      onChange={setEditingContent}
                       autoFocus
                     />
                     <div className="inline-actions">
@@ -554,7 +708,7 @@ function Comments({
                     </div>
                   </div>
                 ) : (
-                  <p>{comment.content}</p>
+                  <p>{renderMentionText(comment.content, members)}</p>
                 )}
                 {!isEditing && (canEdit || canDelete) && (
                   <div className="comment-actions">
@@ -563,7 +717,9 @@ function Comments({
                         type="button"
                         onClick={() => {
                           setEditingId(comment.id);
-                          setEditingContent(comment.content);
+                          setEditingContent(
+                            displayMentionText(comment.content, members),
+                          );
                         }}
                       >
                         <Edit3 size={13} /> Edit
@@ -678,7 +834,9 @@ function Checklist({ taskId }: { taskId: string }) {
         (item) => item.id === targetId,
       );
       const insertIndex =
-        placement === "after" ? targetIndexAfterRemoval + 1 : targetIndexAfterRemoval;
+        placement === "after"
+          ? targetIndexAfterRemoval + 1
+          : targetIndexAfterRemoval;
       next.splice(insertIndex, 0, moved);
       await Promise.all(
         next.map((item, position) =>
@@ -691,10 +849,7 @@ function Checklist({ taskId }: { taskId: string }) {
     onSuccess: refresh,
     onError: (e) => toast.error(e.message),
   });
-  const previewDrop = (
-    event: DragEvent<HTMLElement>,
-    targetId: string,
-  ) => {
+  const previewDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
     event.preventDefault();
     if (draggedItemId === targetId) {
       setDropPreview(null);
@@ -751,18 +906,16 @@ function Checklist({ taskId }: { taskId: string }) {
               const isEditing = editingId === item.id;
               return (
                 <article
-                  className={
-                    [
-                      "checklist-item",
-                      item.isCompleted ? "completed" : "",
-                      draggedItemId === item.id ? "dragging" : "",
-                      dropPreview?.id === item.id
-                        ? `drop-${dropPreview.placement}`
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-                  }
+                  className={[
+                    "checklist-item",
+                    item.isCompleted ? "completed" : "",
+                    draggedItemId === item.id ? "dragging" : "",
+                    dropPreview?.id === item.id
+                      ? `drop-${dropPreview.placement}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                   key={item.id}
                   onDragOver={(event) => previewDrop(event, item.id)}
                   onDragLeave={() => {
@@ -776,7 +929,11 @@ function Checklist({ taskId }: { taskId: string }) {
                     setDraggedItemId(null);
                     setDropPreview(null);
                     if (sourceId)
-                      reorder.mutate({ sourceId, targetId: item.id, placement });
+                      reorder.mutate({
+                        sourceId,
+                        targetId: item.id,
+                        placement,
+                      });
                   }}
                 >
                   <span
@@ -876,21 +1033,17 @@ function Checklist({ taskId }: { taskId: string }) {
 }
 function History({ taskId }: { taskId: string }) {
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: keys.activity(taskId),
-    initialPageParam: 1,
-    queryFn: ({ pageParam }) => api.activity(taskId, { page: pageParam, limit: 10 }),
-    getNextPageParam: (lastPage) =>
-      lastPage.meta.page < lastPage.meta.totalPages
-        ? lastPage.meta.page + 1
-        : undefined,
-  });
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: keys.activity(taskId),
+      initialPageParam: 1,
+      queryFn: ({ pageParam }) =>
+        api.activity(taskId, { page: pageParam, limit: 10 }),
+      getNextPageParam: (lastPage) =>
+        lastPage.meta.page < lastPage.meta.totalPages
+          ? lastPage.meta.page + 1
+          : undefined,
+    });
   useEffect(() => {
     if (!hasNextPage || !loadMoreRef.current) return;
     const observer = new IntersectionObserver((entries) => {
@@ -951,13 +1104,14 @@ function TimeTrackingDialog({
   projectId: string;
   task: Task;
   onClose: () => void;
-  onSaved: (timeSpentMinutes: number, remainingEstimateMinutes?: number) => void;
+  onSaved: (
+    timeSpentMinutes: number,
+    remainingEstimateMinutes?: number,
+  ) => void;
 }) {
   const client = useQueryClient();
   const now = new Date();
-  const [startedDate, setStartedDate] = useState(
-    format(now, "yyyy-MM-dd"),
-  );
+  const [startedDate, setStartedDate] = useState(format(now, "yyyy-MM-dd"));
   const [startedTime, setStartedTime] = useState(format(now, "HH:mm"));
   const [timeSpent, setTimeSpent] = useState("");
   const [remaining, setRemaining] = useState(
@@ -985,14 +1139,14 @@ function TimeTrackingDialog({
         description: description.trim() || undefined,
         startedAt: new Date(`${startedDate}T${startedTime}:00`).toISOString(),
         remainingEstimateMinutes: remaining.trim()
-          ? parsedRemaining.minutes ?? undefined
+          ? (parsedRemaining.minutes ?? undefined)
           : undefined,
       });
     },
     onSuccess: () => {
       const spent = parsedTimeSpent.minutes ?? 0;
       const nextRemaining = remaining.trim()
-        ? parsedRemaining.minutes ?? undefined
+        ? (parsedRemaining.minutes ?? undefined)
         : undefined;
       client.invalidateQueries({ queryKey: keys.worklogs(projectId, task.id) });
       client.invalidateQueries({ queryKey: ["tasks", projectId] });
@@ -1006,16 +1160,21 @@ function TimeTrackingDialog({
     onError: (e) => toast.error(e.message),
   });
   const timeSpentError =
-    timeSpent.trim() && parsedTimeSpent.error ? parsedTimeSpent.error : undefined;
+    timeSpent.trim() && parsedTimeSpent.error
+      ? parsedTimeSpent.error
+      : undefined;
   const remainingError =
-    remaining.trim() && parsedRemaining.error ? parsedRemaining.error : undefined;
+    remaining.trim() && parsedRemaining.error
+      ? parsedRemaining.error
+      : undefined;
   return (
     <Dialog open={open} title="Time tracking" onClose={onClose}>
       <form
         className="time-tracking-form"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!parsedTimeSpent.minutes || timeSpentError || remainingError) return;
+          if (!parsedTimeSpent.minutes || timeSpentError || remainingError)
+            return;
           create.mutate();
         }}
       >
@@ -1060,7 +1219,11 @@ function TimeTrackingDialog({
         </div>
         <Field
           label="Date started*"
-          error={!startedDate || !startedTime ? "Date started is required." : undefined}
+          error={
+            !startedDate || !startedTime
+              ? "Date started is required."
+              : undefined
+          }
         >
           <div className="date-time-picker-grid">
             <Input
@@ -1132,9 +1295,13 @@ function WorklogEditDialog({
   const parsedTimeSpent = parseEstimate(timeSpent);
   const parsedRemaining = parseEstimate(remaining);
   const timeSpentError =
-    timeSpent.trim() && parsedTimeSpent.error ? parsedTimeSpent.error : undefined;
+    timeSpent.trim() && parsedTimeSpent.error
+      ? parsedTimeSpent.error
+      : undefined;
   const remainingError =
-    remaining.trim() && parsedRemaining.error ? parsedRemaining.error : undefined;
+    remaining.trim() && parsedRemaining.error
+      ? parsedRemaining.error
+      : undefined;
   const update = useMutation({
     mutationFn: () => {
       if (!parsedTimeSpent.minutes) throw new Error("Time spent is required");
@@ -1145,14 +1312,14 @@ function WorklogEditDialog({
         description: description.trim(),
         startedAt: new Date(`${startedDate}T${startedTime}:00`).toISOString(),
         remainingEstimateMinutes: remaining.trim()
-          ? parsedRemaining.minutes ?? undefined
+          ? (parsedRemaining.minutes ?? undefined)
           : undefined,
       });
     },
     onSuccess: (updated) => {
       onSaved(
         updated,
-        remaining.trim() ? parsedRemaining.minutes ?? undefined : undefined,
+        remaining.trim() ? (parsedRemaining.minutes ?? undefined) : undefined,
       );
       toast.success("Worklog updated");
     },
@@ -1164,7 +1331,8 @@ function WorklogEditDialog({
         className="time-tracking-form"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!parsedTimeSpent.minutes || timeSpentError || remainingError) return;
+          if (!parsedTimeSpent.minutes || timeSpentError || remainingError)
+            return;
           update.mutate();
         }}
       >
@@ -1198,7 +1366,11 @@ function WorklogEditDialog({
         </div>
         <Field
           label="Date started*"
-          error={!startedDate || !startedTime ? "Date started is required." : undefined}
+          error={
+            !startedDate || !startedTime
+              ? "Date started is required."
+              : undefined
+          }
         >
           <div className="date-time-picker-grid">
             <Input
@@ -1255,22 +1427,17 @@ function WorklogList({
   const [editWorklog, setEditWorklog] = useState<Worklog>();
   const [deleteWorklog, setDeleteWorklog] = useState<Worklog>();
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: keys.worklogs(projectId, task.id),
-    initialPageParam: 1,
-    queryFn: ({ pageParam }) =>
-      api.worklogs(projectId, task.id, { page: pageParam, limit: 10 }),
-    getNextPageParam: (lastPage) =>
-      lastPage.meta.page < lastPage.meta.totalPages
-        ? lastPage.meta.page + 1
-        : undefined,
-  });
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: keys.worklogs(projectId, task.id),
+      initialPageParam: 1,
+      queryFn: ({ pageParam }) =>
+        api.worklogs(projectId, task.id, { page: pageParam, limit: 10 }),
+      getNextPageParam: (lastPage) =>
+        lastPage.meta.page < lastPage.meta.totalPages
+          ? lastPage.meta.page + 1
+          : undefined,
+    });
   const refresh = () => {
     client.invalidateQueries({ queryKey: keys.worklogs(projectId, task.id) });
     client.invalidateQueries({ queryKey: ["tasks", projectId] });
@@ -1327,13 +1494,17 @@ function WorklogList({
           <article className="worklog-entry" key={worklog.id}>
             <Avatar
               label={worklog.author ? initials(worklog.author) : "?"}
-              src={worklog.authorId ? api.avatarUrl(worklog.authorId) : undefined}
+              src={
+                worklog.authorId ? api.avatarUrl(worklog.authorId) : undefined
+              }
             />
             <div>
               <header>
                 <div>
                   <strong>
-                    {worklog.author ? personName(worklog.author) : "Unknown user"}
+                    {worklog.author
+                      ? personName(worklog.author)
+                      : "Unknown user"}
                   </strong>
                   <small>
                     {formatDistanceToNow(new Date(worklog.startedAt), {
@@ -1845,7 +2016,10 @@ function WatchersPopover({
                 const user = watcherUser(watcher);
                 return (
                   <div className="watcher-row" key={user.id}>
-                    <Avatar label={initials(user)} src={api.avatarUrl(user.id)} />
+                    <Avatar
+                      label={initials(user)}
+                      src={api.avatarUrl(user.id)}
+                    />
                     <span>{personName(user)}</span>
                     <button
                       type="button"
@@ -2313,6 +2487,7 @@ function TaskModal({
                 taskId={task.id}
                 currentUser={currentUser}
                 currentRole={currentMember?.role}
+                members={members}
               />
             )}
             {(activityTab === "all" || activityTab === "history") && (
@@ -2344,7 +2519,11 @@ function TaskModal({
               ))}
             </Select>
             {task.flaggedAt && (
-              <span className="modal-flag-icon" title="Flagged" aria-label="Flagged">
+              <span
+                className="modal-flag-icon"
+                title="Flagged"
+                aria-label="Flagged"
+              >
                 <Flag size={16} fill="currentColor" />
               </span>
             )}
@@ -2450,7 +2629,9 @@ function TaskModal({
               <span>Original estimate</span>
               <div className="estimate-field">
                 <Input
-                  className={parsedOriginalEstimate.error ? "input-invalid" : ""}
+                  className={
+                    parsedOriginalEstimate.error ? "input-invalid" : ""
+                  }
                   placeholder="2w 4d 6h 45m"
                   value={originalEstimate}
                   disabled={updateModalField.isPending}
@@ -2818,7 +2999,8 @@ function MilestonesTab({ projectId }: { projectId: string }) {
         open={!!deleteId}
         title="Delete milestone?"
         description={`Are you sure you want to delete "${
-          milestones.find((item) => item.id === deleteId)?.name || "this milestone"
+          milestones.find((item) => item.id === deleteId)?.name ||
+          "this milestone"
         }"? This action cannot be undone.`}
         confirmText="Delete milestone"
         loading={remove.isPending}
@@ -2834,9 +3016,7 @@ export function ProjectPage() {
   const filtersRef = useRef<HTMLDivElement>(null);
   const restoredSavedFilterProjectRef = useRef<string | null>(null);
   const [create, setCreate] = useState(false);
-  const [projectTab, setProjectTab] = useState<"tasks" | "milestones">(
-    "tasks",
-  );
+  const [projectTab, setProjectTab] = useState<"tasks" | "milestones">("tasks");
   const [view, setView] = useState<"list" | "board">("board");
   const [filters, setFilters] = useState<TaskFilters>({});
   const [selected, setSelected] = useState<Task>();
@@ -2901,7 +3081,9 @@ export function ProjectPage() {
     if (!projectId || !savedFilters) return;
     if (restoredSavedFilterProjectRef.current === projectId) return;
     restoredSavedFilterProjectRef.current = projectId;
-    const savedFilterId = localStorage.getItem(savedFilterStorageKey(projectId));
+    const savedFilterId = localStorage.getItem(
+      savedFilterStorageKey(projectId),
+    );
     if (!savedFilterId) {
       queueMicrotask(() => setActiveSavedFilterId(null));
       return;
@@ -3046,13 +3228,15 @@ export function ProjectPage() {
   const taskRow = (task: Task, draggable = false) => {
     const assignee = findAssignee(members, task);
     return (
-    <article
-      className={[
-        "task-row",
-        draggedTaskId === task.id ? "dragging" : "",
-        task.flaggedAt ? "flagged" : "",
-      ].filter(Boolean).join(" ")}
-      key={task.id}
+      <article
+        className={[
+          "task-row",
+          draggedTaskId === task.id ? "dragging" : "",
+          task.flaggedAt ? "flagged" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        key={task.id}
         draggable={draggable}
         onDragStart={(event) => {
           if (!draggable) return;
@@ -3065,28 +3249,28 @@ export function ProjectPage() {
           setDropTarget(null);
         }}
         onClick={() => setSelected(task)}
-    >
-      <div>
-        <span className="task-card-icon-row">
-          <span
-            className="task-card-icon"
-            title={`Type: ${humanizeConstant(task.type)}`}
-            aria-label={`Type: ${humanizeConstant(task.type)}`}
-          >
-            <TypeIcon type={task.type} />
-          </span>
-          {task.flaggedAt && (
+      >
+        <div>
+          <span className="task-card-icon-row">
             <span
-              className="task-flag-icon"
-              title="Flagged"
-              aria-label="Flagged"
+              className="task-card-icon"
+              title={`Type: ${humanizeConstant(task.type)}`}
+              aria-label={`Type: ${humanizeConstant(task.type)}`}
             >
-              <Flag size={15} fill="currentColor" />
+              <TypeIcon type={task.type} />
             </span>
-          )}
-        </span>
-        <strong>{task.title}</strong>
-      </div>
+            {task.flaggedAt && (
+              <span
+                className="task-flag-icon"
+                title="Flagged"
+                aria-label="Flagged"
+              >
+                <Flag size={15} fill="currentColor" />
+              </span>
+            )}
+          </span>
+          <strong>{task.title}</strong>
+        </div>
         <div className="task-row-meta">
           <span
             className="task-card-icon"
@@ -3110,8 +3294,8 @@ export function ProjectPage() {
               -
             </span>
           )}
-      </div>
-    </article>
+        </div>
+      </article>
     );
   };
   return (
@@ -3154,521 +3338,543 @@ export function ProjectPage() {
         <MilestonesTab projectId={projectId} />
       ) : (
         <>
-      <div className="toolbar task-filters" ref={filtersRef}>
-        <div className="search task-search">
-          <Search size={15} />
-          <Input
-            placeholder="Search tasks"
-            value={filters.search || ""}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          />
-        </div>
-        <div className="task-filter-popover saved-filter-popover">
-          <button
-            className="task-filter-button"
-            type="button"
-            onClick={() => setOpenFilter(openFilter === "saved" ? null : "saved")}
-          >
-            Saved filters
-            <ChevronDown size={14} />
-          </button>
-          {openFilter === "saved" && (
-            <div className="task-filter-menu saved-filter-menu">
-              {!savedFilters?.length ? (
-                <p>No saved filters yet</p>
-              ) : (
-                savedFilters.map((savedFilter) => (
-                  <div className="saved-filter-row" key={savedFilter.id}>
-                    <button
-                      type="button"
+          <div className="toolbar task-filters" ref={filtersRef}>
+            <div className="search task-search">
+              <Search size={15} />
+              <Input
+                placeholder="Search tasks"
+                value={filters.search || ""}
+                onChange={(e) =>
+                  setFilters({ ...filters, search: e.target.value })
+                }
+              />
+            </div>
+            <div className="task-filter-popover saved-filter-popover">
+              <button
+                className="task-filter-button"
+                type="button"
+                onClick={() =>
+                  setOpenFilter(openFilter === "saved" ? null : "saved")
+                }
+              >
+                Saved filters
+                <ChevronDown size={14} />
+              </button>
+              {openFilter === "saved" && (
+                <div className="task-filter-menu saved-filter-menu">
+                  {!savedFilters?.length ? (
+                    <p>No saved filters yet</p>
+                  ) : (
+                    savedFilters.map((savedFilter) => (
+                      <div className="saved-filter-row" key={savedFilter.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFilters(
+                              normalizeSavedFilters(savedFilter.filters),
+                            );
+                            setActiveSavedFilterId(savedFilter.id);
+                            localStorage.setItem(
+                              savedFilterStorageKey(projectId),
+                              savedFilter.id,
+                            );
+                            setOpenFilter(null);
+                          }}
+                        >
+                          {savedFilter.name}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Edit ${savedFilter.name}`}
+                          onClick={() => {
+                            setEditFilter(savedFilter);
+                            setEditFilterName(savedFilter.name);
+                            setEditFilterUsesCurrent(false);
+                            setOpenFilter(null);
+                          }}
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Delete ${savedFilter.name}`}
+                          onClick={() => {
+                            setDeleteFilter(savedFilter);
+                            setOpenFilter(null);
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                  <div className="saved-filter-footer">
+                    <Button
+                      variant="secondary"
+                      disabled={!hasActiveFilters}
                       onClick={() => {
-                        setFilters(normalizeSavedFilters(savedFilter.filters));
-                        setActiveSavedFilterId(savedFilter.id);
-                        localStorage.setItem(
-                          savedFilterStorageKey(projectId),
-                          savedFilter.id,
-                        );
+                        setSaveFilterName("");
+                        setSaveFilterOpen(true);
                         setOpenFilter(null);
                       }}
                     >
-                      {savedFilter.name}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Edit ${savedFilter.name}`}
-                      onClick={() => {
-                        setEditFilter(savedFilter);
-                        setEditFilterName(savedFilter.name);
-                        setEditFilterUsesCurrent(false);
-                        setOpenFilter(null);
-                      }}
-                    >
-                      <Edit3 size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Delete ${savedFilter.name}`}
-                      onClick={() => {
-                        setDeleteFilter(savedFilter);
-                        setOpenFilter(null);
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                      <Plus size={15} /> Save current filter
+                    </Button>
                   </div>
-                ))
+                </div>
               )}
-              <div className="saved-filter-footer">
-                <Button
-                  variant="secondary"
-                  disabled={!hasActiveFilters}
+            </div>
+            {activeSavedFilter && (
+              <div
+                className={
+                  activeSavedFilterModified
+                    ? "active-saved-filter modified"
+                    : "active-saved-filter"
+                }
+              >
+                <span>
+                  View: <strong>{activeSavedFilter.name}</strong>
+                  {activeSavedFilterModified ? " (modified)" : ""}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Clear active saved filter"
                   onClick={() => {
-                    setSaveFilterName("");
-                    setSaveFilterOpen(true);
-                    setOpenFilter(null);
+                    setActiveSavedFilterId(null);
+                    setFilters({});
+                    localStorage.removeItem(savedFilterStorageKey(projectId));
                   }}
                 >
-                  <Plus size={15} /> Save current filter
-                </Button>
+                  <X size={13} />
+                </button>
               </div>
-            </div>
-          )}
-        </div>
-        {activeSavedFilter && (
-          <div
-            className={
-              activeSavedFilterModified
-                ? "active-saved-filter modified"
-                : "active-saved-filter"
-            }
-          >
-            <span>
-              View: <strong>{activeSavedFilter.name}</strong>
-              {activeSavedFilterModified ? " (modified)" : ""}
-            </span>
-            <button
-              type="button"
-              aria-label="Clear active saved filter"
-              onClick={() => {
-                setActiveSavedFilterId(null);
-                setFilters({});
-                localStorage.removeItem(savedFilterStorageKey(projectId));
-              }}
-            >
-              <X size={13} />
-            </button>
-          </div>
-        )}
-        <div className="task-filter-popover">
-          <button
-            className={
-              selectedStatuses.length
-                ? "task-filter-button active"
-                : "task-filter-button"
-            }
-            type="button"
-            onClick={() =>
-              setOpenFilter(openFilter === "statuses" ? null : "statuses")
-            }
-          >
-            {selectedStatuses.length
-              ? `${selectedStatuses.length} status${selectedStatuses.length > 1 ? "es" : ""}`
-              : "Statuses"}
-            <ChevronDown size={14} />
-          </button>
-          {openFilter === "statuses" && (
-            <div className="task-filter-menu compact">
-              {statuses.map((status) => (
-                <label className="task-filter-option" key={status}>
-                  <input
-                    type="checkbox"
-                    checked={selectedStatuses.includes(status)}
-                    onChange={() => toggleStatusFilter(status)}
-                  />
-                  <span>{statusLabel(status)}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="task-filter-popover">
-          <button
-            className={
-              selectedPriorities.length
-                ? "task-filter-button active"
-                : "task-filter-button"
-            }
-            type="button"
-            onClick={() =>
-              setOpenFilter(openFilter === "priorities" ? null : "priorities")
-            }
-          >
-            {selectedPriorities.length
-              ? `${selectedPriorities.length} priorit${selectedPriorities.length > 1 ? "ies" : "y"}`
-              : "Priorities"}
-            <ChevronDown size={14} />
-          </button>
-          {openFilter === "priorities" && (
-            <div className="task-filter-menu compact">
-              {priorities.map((priority) => (
-                <label className="task-filter-option" key={priority}>
-                  <input
-                    type="checkbox"
-                    checked={selectedPriorities.includes(priority)}
-                    onChange={() => togglePriorityFilter(priority)}
-                  />
-                  <PriorityIcon priority={priority} />
-                  <span>{humanizeConstant(priority)}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="task-filter-popover">
-          <button
-            className={
-              selectedTypes.length
-                ? "task-filter-button active"
-                : "task-filter-button"
-            }
-            type="button"
-            onClick={() =>
-              setOpenFilter(openFilter === "types" ? null : "types")
-            }
-          >
-            {selectedTypes.length
-              ? `${selectedTypes.length} type${selectedTypes.length > 1 ? "s" : ""}`
-              : "Types"}
-            <ChevronDown size={14} />
-          </button>
-          {openFilter === "types" && (
-            <div className="task-filter-menu compact">
-              {types.map((type) => (
-                <label className="task-filter-option" key={type}>
-                  <input
-                    type="checkbox"
-                    checked={selectedTypes.includes(type)}
-                    onChange={() => toggleTypeFilter(type)}
-                  />
-                  <TypeIcon type={type} />
-                  <span>{humanizeConstant(type)}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="task-filter-popover assignee-filter">
-          <button
-            className={
-              selectedAssigneeIds.length || filters.unassigned
-                ? "task-filter-button active"
-                : "task-filter-button"
-            }
-            type="button"
-            onClick={() =>
-              setOpenFilter(openFilter === "assignees" ? null : "assignees")
-            }
-          >
-            <Users size={15} />
-            {filters.unassigned
-              ? "Unassigned"
-              : selectedAssigneeIds.length
-              ? `${selectedAssigneeIds.length} assignee${selectedAssigneeIds.length > 1 ? "s" : ""}`
-              : "Assignees"}
-            <ChevronDown size={14} />
-          </button>
-          {openFilter === "assignees" && (
-            <div className="task-filter-menu assignee-filter-menu">
-              <label className="task-filter-option assignee-filter-option">
-                <input
-                  type="checkbox"
-                  checked={!!filters.unassigned}
-                  onChange={(event) =>
-                    setFilters({
-                      ...filters,
-                      assigneeIds: event.target.checked
-                        ? undefined
-                        : filters.assigneeIds,
-                      unassigned: event.target.checked,
-                    })
-                  }
-                />
-                <span className="assignee-filter-empty-avatar">-</span>
-                <span>
-                  <strong>Unassigned</strong>
-                </span>
-              </label>
-              {!members?.length ? (
-                <p>No members yet</p>
-              ) : (
-                members.map((member) => {
-                  const checked = selectedAssigneeIds.includes(member.user.id);
-                  return (
-                    <label
-                      className="task-filter-option assignee-filter-option"
-                      key={member.id}
-                    >
+            )}
+            <div className="task-filter-popover">
+              <button
+                className={
+                  selectedStatuses.length
+                    ? "task-filter-button active"
+                    : "task-filter-button"
+                }
+                type="button"
+                onClick={() =>
+                  setOpenFilter(openFilter === "statuses" ? null : "statuses")
+                }
+              >
+                {selectedStatuses.length
+                  ? `${selectedStatuses.length} status${selectedStatuses.length > 1 ? "es" : ""}`
+                  : "Statuses"}
+                <ChevronDown size={14} />
+              </button>
+              {openFilter === "statuses" && (
+                <div className="task-filter-menu compact">
+                  {statuses.map((status) => (
+                    <label className="task-filter-option" key={status}>
                       <input
                         type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleAssigneeFilter(member.user.id)}
+                        checked={selectedStatuses.includes(status)}
+                        onChange={() => toggleStatusFilter(status)}
                       />
-                      <Avatar
-                        label={initials(member.user)}
-                        src={api.avatarUrl(member.user.id)}
-                      />
-                      <span>
-                        <strong>{personName(member.user)}</strong>
-                        <small>{member.user.email}</small>
-                      </span>
+                      <span>{statusLabel(status)}</span>
                     </label>
-                  );
-                })
+                  ))}
+                </div>
               )}
             </div>
-          )}
-        </div>
-        <div className="task-filter-popover milestone-filter">
-          <button
-            className={
-              selectedMilestoneIds.length || filters.withoutMilestone
-                ? "task-filter-button active"
-                : "task-filter-button"
-            }
-            type="button"
-            onClick={() =>
-              setOpenFilter(openFilter === "milestones" ? null : "milestones")
-            }
-          >
-            <CalendarDays size={15} />
-            {filters.withoutMilestone
-              ? "Without milestone"
-              : selectedMilestoneIds.length
-                ? `${selectedMilestoneIds.length} milestone${selectedMilestoneIds.length > 1 ? "s" : ""}`
-                : "Milestones"}
-            <ChevronDown size={14} />
-          </button>
-          {openFilter === "milestones" && (
-            <div className="task-filter-menu milestone-filter-menu">
-              <label className="task-filter-option">
-                <input
-                  type="checkbox"
-                  checked={!!filters.withoutMilestone}
-                  onChange={(event) =>
-                    setFilters({
-                      ...filters,
-                      milestoneIds: event.target.checked
-                        ? undefined
-                        : filters.milestoneIds,
-                      withoutMilestone: event.target.checked,
-                    })
-                  }
-                />
-                <CalendarDays size={15} />
-                <span>Without milestone</span>
-              </label>
-              {!milestones?.length ? (
-                <p>No milestones yet</p>
-              ) : (
-                milestones.map((milestone) => (
-                  <label className="task-filter-option" key={milestone.id}>
+            <div className="task-filter-popover">
+              <button
+                className={
+                  selectedPriorities.length
+                    ? "task-filter-button active"
+                    : "task-filter-button"
+                }
+                type="button"
+                onClick={() =>
+                  setOpenFilter(
+                    openFilter === "priorities" ? null : "priorities",
+                  )
+                }
+              >
+                {selectedPriorities.length
+                  ? `${selectedPriorities.length} priorit${selectedPriorities.length > 1 ? "ies" : "y"}`
+                  : "Priorities"}
+                <ChevronDown size={14} />
+              </button>
+              {openFilter === "priorities" && (
+                <div className="task-filter-menu compact">
+                  {priorities.map((priority) => (
+                    <label className="task-filter-option" key={priority}>
+                      <input
+                        type="checkbox"
+                        checked={selectedPriorities.includes(priority)}
+                        onChange={() => togglePriorityFilter(priority)}
+                      />
+                      <PriorityIcon priority={priority} />
+                      <span>{humanizeConstant(priority)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="task-filter-popover">
+              <button
+                className={
+                  selectedTypes.length
+                    ? "task-filter-button active"
+                    : "task-filter-button"
+                }
+                type="button"
+                onClick={() =>
+                  setOpenFilter(openFilter === "types" ? null : "types")
+                }
+              >
+                {selectedTypes.length
+                  ? `${selectedTypes.length} type${selectedTypes.length > 1 ? "s" : ""}`
+                  : "Types"}
+                <ChevronDown size={14} />
+              </button>
+              {openFilter === "types" && (
+                <div className="task-filter-menu compact">
+                  {types.map((type) => (
+                    <label className="task-filter-option" key={type}>
+                      <input
+                        type="checkbox"
+                        checked={selectedTypes.includes(type)}
+                        onChange={() => toggleTypeFilter(type)}
+                      />
+                      <TypeIcon type={type} />
+                      <span>{humanizeConstant(type)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="task-filter-popover assignee-filter">
+              <button
+                className={
+                  selectedAssigneeIds.length || filters.unassigned
+                    ? "task-filter-button active"
+                    : "task-filter-button"
+                }
+                type="button"
+                onClick={() =>
+                  setOpenFilter(openFilter === "assignees" ? null : "assignees")
+                }
+              >
+                <Users size={15} />
+                {filters.unassigned
+                  ? "Unassigned"
+                  : selectedAssigneeIds.length
+                    ? `${selectedAssigneeIds.length} assignee${selectedAssigneeIds.length > 1 ? "s" : ""}`
+                    : "Assignees"}
+                <ChevronDown size={14} />
+              </button>
+              {openFilter === "assignees" && (
+                <div className="task-filter-menu assignee-filter-menu">
+                  <label className="task-filter-option assignee-filter-option">
                     <input
                       type="checkbox"
-                      checked={selectedMilestoneIds.includes(milestone.id)}
-                      onChange={() => toggleMilestoneFilter(milestone.id)}
+                      checked={!!filters.unassigned}
+                      onChange={(event) =>
+                        setFilters({
+                          ...filters,
+                          assigneeIds: event.target.checked
+                            ? undefined
+                            : filters.assigneeIds,
+                          unassigned: event.target.checked,
+                        })
+                      }
                     />
-                    <CalendarDays size={15} />
-                    <span>{milestone.name}</span>
+                    <span className="assignee-filter-empty-avatar">-</span>
+                    <span>
+                      <strong>Unassigned</strong>
+                    </span>
                   </label>
-                ))
+                  {!members?.length ? (
+                    <p>No members yet</p>
+                  ) : (
+                    members.map((member) => {
+                      const checked = selectedAssigneeIds.includes(
+                        member.user.id,
+                      );
+                      return (
+                        <label
+                          className="task-filter-option assignee-filter-option"
+                          key={member.id}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              toggleAssigneeFilter(member.user.id)
+                            }
+                          />
+                          <Avatar
+                            label={initials(member.user)}
+                            src={api.avatarUrl(member.user.id)}
+                          />
+                          <span>
+                            <strong>{personName(member.user)}</strong>
+                            <small>{member.user.email}</small>
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
-        <div className="view-switch">
-          <Button
-            variant={view === "board" ? "secondary" : "ghost"}
-            onClick={() => setView("board")}
-          >
-            <CheckSquare2 size={15} />
-          </Button>
-          <Button
-            variant={view === "list" ? "secondary" : "ghost"}
-            onClick={() => setView("list")}
-          >
-            <List size={15} />
-          </Button>
-        </div>
-      </div>
-      {isLoading ? (
-        <Skeleton />
-      ) : error ? (
-        <Empty title="Could not load tasks" detail={error.message} />
-      ) : !data?.data.length ? (
-        <Empty
-          title="No matching tasks"
-          detail="Create a task or adjust your filters."
-        />
-      ) : view === "board" ? (
-        <div className="board">
-          {statuses.map((status) => (
-            <section
-              className={
-                dropTarget === status
-                  ? "board-column drag-over"
-                  : "board-column"
-              }
-              key={status}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-                setDropTarget(status);
-              }}
-              onDragLeave={(event) => {
-                if (
-                  !event.currentTarget.contains(event.relatedTarget as Node)
-                ) {
-                  setDropTarget(null);
+            <div className="task-filter-popover milestone-filter">
+              <button
+                className={
+                  selectedMilestoneIds.length || filters.withoutMilestone
+                    ? "task-filter-button active"
+                    : "task-filter-button"
                 }
+                type="button"
+                onClick={() =>
+                  setOpenFilter(
+                    openFilter === "milestones" ? null : "milestones",
+                  )
+                }
+              >
+                <CalendarDays size={15} />
+                {filters.withoutMilestone
+                  ? "Without milestone"
+                  : selectedMilestoneIds.length
+                    ? `${selectedMilestoneIds.length} milestone${selectedMilestoneIds.length > 1 ? "s" : ""}`
+                    : "Milestones"}
+                <ChevronDown size={14} />
+              </button>
+              {openFilter === "milestones" && (
+                <div className="task-filter-menu milestone-filter-menu">
+                  <label className="task-filter-option">
+                    <input
+                      type="checkbox"
+                      checked={!!filters.withoutMilestone}
+                      onChange={(event) =>
+                        setFilters({
+                          ...filters,
+                          milestoneIds: event.target.checked
+                            ? undefined
+                            : filters.milestoneIds,
+                          withoutMilestone: event.target.checked,
+                        })
+                      }
+                    />
+                    <CalendarDays size={15} />
+                    <span>Without milestone</span>
+                  </label>
+                  {!milestones?.length ? (
+                    <p>No milestones yet</p>
+                  ) : (
+                    milestones.map((milestone) => (
+                      <label className="task-filter-option" key={milestone.id}>
+                        <input
+                          type="checkbox"
+                          checked={selectedMilestoneIds.includes(milestone.id)}
+                          onChange={() => toggleMilestoneFilter(milestone.id)}
+                        />
+                        <CalendarDays size={15} />
+                        <span>{milestone.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="view-switch">
+              <Button
+                variant={view === "board" ? "secondary" : "ghost"}
+                onClick={() => setView("board")}
+              >
+                <CheckSquare2 size={15} />
+              </Button>
+              <Button
+                variant={view === "list" ? "secondary" : "ghost"}
+                onClick={() => setView("list")}
+              >
+                <List size={15} />
+              </Button>
+            </div>
+          </div>
+          {isLoading ? (
+            <Skeleton />
+          ) : error ? (
+            <Empty title="Could not load tasks" detail={error.message} />
+          ) : !data?.data.length ? (
+            <Empty
+              title="No matching tasks"
+              detail="Create a task or adjust your filters."
+            />
+          ) : view === "board" ? (
+            <div className="board">
+              {statuses.map((status) => (
+                <section
+                  className={
+                    dropTarget === status
+                      ? "board-column drag-over"
+                      : "board-column"
+                  }
+                  key={status}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setDropTarget(status);
+                  }}
+                  onDragLeave={(event) => {
+                    if (
+                      !event.currentTarget.contains(event.relatedTarget as Node)
+                    ) {
+                      setDropTarget(null);
+                    }
+                  }}
+                  onDrop={(event) => handleDrop(event, status)}
+                >
+                  <header>
+                    <strong>{statusLabel(status)}</strong>
+                    <Badge>
+                      {data.data.filter((x) => x.status === status).length}
+                    </Badge>
+                  </header>
+                  {data.data
+                    .filter((x) => x.status === status)
+                    .map((task) => (
+                      <div
+                        className="task-card-wrap"
+                        key={task.id}
+                        aria-label={`Drag ${task.title} to another status`}
+                      >
+                        {taskRow(task, true)}
+                      </div>
+                    ))}
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="task-list">
+              {data.data.map((task) => taskRow(task))}
+            </div>
+          )}
+          <Dialog
+            open={saveFilterOpen}
+            title="Save current filter"
+            onClose={() => setSaveFilterOpen(false)}
+          >
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (saveFilterName.trim().length >= 2)
+                  createSavedFilter.mutate();
               }}
-              onDrop={(event) => handleDrop(event, status)}
             >
-              <header>
-                <strong>{statusLabel(status)}</strong>
-                <Badge>
-                  {data.data.filter((x) => x.status === status).length}
-                </Badge>
-              </header>
-              {data.data
-                .filter((x) => x.status === status)
-                .map((task) => (
-                  <div
-                    className="task-card-wrap"
-                    key={task.id}
-                    aria-label={`Drag ${task.title} to another status`}
-                  >
-                    {taskRow(task, true)}
-                  </div>
-                ))}
-            </section>
-          ))}
-        </div>
-      ) : (
-        <div className="task-list">
-          {data.data.map((task) => taskRow(task))}
-        </div>
-      )}
-      <Dialog
-        open={saveFilterOpen}
-        title="Save current filter"
-        onClose={() => setSaveFilterOpen(false)}
-      >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (saveFilterName.trim().length >= 2) createSavedFilter.mutate();
-          }}
-        >
-          <Field label="Name">
-            <Input
-              value={saveFilterName}
-              minLength={2}
-              maxLength={80}
-              autoFocus
-              required
-              onChange={(event) => setSaveFilterName(event.target.value)}
+              <Field label="Name">
+                <Input
+                  value={saveFilterName}
+                  minLength={2}
+                  maxLength={80}
+                  autoFocus
+                  required
+                  onChange={(event) => setSaveFilterName(event.target.value)}
+                />
+              </Field>
+              <div className="dialog-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setSaveFilterOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  loading={createSavedFilter.isPending}
+                  disabled={
+                    !hasActiveFilters || saveFilterName.trim().length < 2
+                  }
+                >
+                  Save filter
+                </Button>
+              </div>
+            </form>
+          </Dialog>
+          <Dialog
+            open={!!editFilter}
+            title="Edit saved filter"
+            onClose={() => setEditFilter(undefined)}
+          >
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (editFilterName.trim().length >= 2)
+                  updateSavedFilter.mutate();
+              }}
+            >
+              <Field label="Name">
+                <Input
+                  value={editFilterName}
+                  minLength={2}
+                  maxLength={80}
+                  autoFocus
+                  required
+                  onChange={(event) => setEditFilterName(event.target.value)}
+                />
+              </Field>
+              <label className="saved-filter-current-check">
+                <input
+                  type="checkbox"
+                  checked={editFilterUsesCurrent}
+                  disabled={!hasActiveFilters}
+                  onChange={(event) =>
+                    setEditFilterUsesCurrent(event.target.checked)
+                  }
+                />
+                Replace saved filters with current board filters
+              </label>
+              <div className="dialog-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setEditFilter(undefined)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  loading={updateSavedFilter.isPending}
+                  disabled={editFilterName.trim().length < 2}
+                >
+                  Save changes
+                </Button>
+              </div>
+            </form>
+          </Dialog>
+          <ConfirmDialog
+            open={!!deleteFilter}
+            title="Delete saved filter?"
+            description={`Are you sure you want to delete "${
+              deleteFilter?.name || "this filter"
+            }"?`}
+            confirmText="Delete filter"
+            loading={removeSavedFilter.isPending}
+            onClose={() => setDeleteFilter(undefined)}
+            onConfirm={() => removeSavedFilter.mutate()}
+          />
+          <Dialog
+            open={create}
+            title="New task"
+            onClose={() => setCreate(false)}
+          >
+            <TaskForm projectId={projectId} onClose={() => setCreate(false)} />
+          </Dialog>
+          {selected && (
+            <TaskModal
+              key={selected.id}
+              workspaceId={workspaceId}
+              projectId={projectId}
+              task={selected}
+              onUpdated={setSelected}
+              onClose={() => setSelected(undefined)}
             />
-          </Field>
-          <div className="dialog-actions">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setSaveFilterOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              loading={createSavedFilter.isPending}
-              disabled={!hasActiveFilters || saveFilterName.trim().length < 2}
-            >
-              Save filter
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-      <Dialog
-        open={!!editFilter}
-        title="Edit saved filter"
-        onClose={() => setEditFilter(undefined)}
-      >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (editFilterName.trim().length >= 2) updateSavedFilter.mutate();
-          }}
-        >
-          <Field label="Name">
-            <Input
-              value={editFilterName}
-              minLength={2}
-              maxLength={80}
-              autoFocus
-              required
-              onChange={(event) => setEditFilterName(event.target.value)}
-            />
-          </Field>
-          <label className="saved-filter-current-check">
-            <input
-              type="checkbox"
-              checked={editFilterUsesCurrent}
-              disabled={!hasActiveFilters}
-              onChange={(event) =>
-                setEditFilterUsesCurrent(event.target.checked)
-              }
-            />
-            Replace saved filters with current board filters
-          </label>
-          <div className="dialog-actions">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setEditFilter(undefined)}
-            >
-              Cancel
-            </Button>
-            <Button
-              loading={updateSavedFilter.isPending}
-              disabled={editFilterName.trim().length < 2}
-            >
-              Save changes
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-      <ConfirmDialog
-        open={!!deleteFilter}
-        title="Delete saved filter?"
-        description={`Are you sure you want to delete "${
-          deleteFilter?.name || "this filter"
-        }"?`}
-        confirmText="Delete filter"
-        loading={removeSavedFilter.isPending}
-        onClose={() => setDeleteFilter(undefined)}
-        onConfirm={() => removeSavedFilter.mutate()}
-      />
-      <Dialog open={create} title="New task" onClose={() => setCreate(false)}>
-        <TaskForm projectId={projectId} onClose={() => setCreate(false)} />
-      </Dialog>
-      {selected && (
-        <TaskModal
-          key={selected.id}
-          workspaceId={workspaceId}
-          projectId={projectId}
-          task={selected}
-          onUpdated={setSelected}
-          onClose={() => setSelected(undefined)}
-        />
-      )}
+          )}
         </>
       )}
     </>

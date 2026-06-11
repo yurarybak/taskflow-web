@@ -489,6 +489,81 @@
   min-width: 0;
 }
 
+.mention-textarea {
+  position: relative;
+}
+
+.mention-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 45;
+  max-height: 230px;
+  overflow: auto;
+  border: 1px solid #e1e5eb;
+  border-radius: 8px;
+  background: white;
+  padding: 6px;
+  box-shadow: 0 12px 30px #1018281a;
+}
+
+.mention-menu button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: white;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mention-menu button:hover {
+  background: #f3f4f6;
+}
+
+.mention-menu .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+
+.mention-menu span {
+  min-width: 0;
+}
+
+.mention-menu strong,
+.mention-menu small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-menu strong {
+  color: #25324b;
+  font-size: 13px;
+}
+
+.mention-menu small {
+  color: #7a8597;
+  font-size: 12px;
+}
+
+.mention-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  background: #e0edff;
+  padding: 1px 5px;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
 .activity-tabs {
   display: inline-flex;
   margin-bottom: 14px;
