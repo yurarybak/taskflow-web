@@ -206,7 +206,6 @@ const renderMentionText = (value: string, members?: Member[]) => {
       </span>,
     );
     lastIndex = index + match.length;
-    П;
     return match;
   });
   if (lastIndex < value.length) parts.push(value.slice(lastIndex));
