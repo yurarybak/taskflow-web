@@ -22,6 +22,7 @@ export const keys = {
   worklog: (projectId: string, taskId: string, id: string) =>
     ["worklog", projectId, taskId, id] as const,
   watchers: (id: string) => ["watchers", id] as const,
+  reminders: (id: string) => ["reminders", id] as const,
   activity: (id: string) => ["activity", id] as const,
   attachments: (id: string) => ["attachments", id] as const,
 };

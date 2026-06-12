@@ -14,6 +14,7 @@ import type {
   SavedTaskFilter,
   Task,
   TaskFilters,
+  TaskReminder,
   TaskWatcher,
   User,
   Worklog,
@@ -544,6 +545,21 @@ export const api = {
     }),
   removeWatcher: (taskId: string, userId: string) =>
     request<{ success: boolean }>(`/tasks/${taskId}/watchers/${userId}`, {
+      method: "DELETE",
+    }),
+  reminders: async (taskId: string) =>
+    normalizeList(
+      await request<Page<TaskReminder> | TaskReminder[]>(
+        `/tasks/${taskId}/reminders`,
+      ),
+    ),
+  createReminder: (taskId: string, remindAt: string) =>
+    request<TaskReminder>(`/tasks/${taskId}/reminders`, {
+      method: "POST",
+      ...json({ remindAt }),
+    }),
+  removeReminder: (taskId: string, id: string) =>
+    request<{ success: boolean }>(`/tasks/${taskId}/reminders/${id}`, {
       method: "DELETE",
     }),
   activity: async (

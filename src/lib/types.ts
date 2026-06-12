@@ -139,6 +139,15 @@ export interface TaskWatcher {
   createdAt?: string;
   updatedAt?: string;
 }
+export interface TaskReminder {
+  id: string;
+  taskId: string;
+  userId: string;
+  remindAt: string;
+  sentAt?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
 export interface Worklog {
   id: string;
   timeSpentMinutes: number;

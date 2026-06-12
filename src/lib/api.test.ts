@@ -218,6 +218,44 @@ describe("api authentication", () => {
     );
   });
 
+  it("calls task reminder endpoints", async () => {
+    const reminder = {
+      id: "reminder-1",
+      taskId: "task-1",
+      userId: "user-1",
+      remindAt: "2026-06-12T10:30:00.000Z",
+      sentAt: null,
+      createdAt: "2026-06-12T09:00:00.000Z",
+    };
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(200, [reminder]))
+      .mockResolvedValueOnce(response(200, reminder))
+      .mockResolvedValueOnce(response(200, { success: true }));
+    vi.stubGlobal("fetch", fetch);
+    await api.reminders("task-1");
+    await api.createReminder("task-1", "2026-06-12T10:30:00.000Z");
+    await api.removeReminder("task-1", "reminder-1");
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:3000/tasks/task-1/reminders",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:3000/tasks/task-1/reminders",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ remindAt: "2026-06-12T10:30:00.000Z" }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:3000/tasks/task-1/reminders/reminder-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
   it("calls milestone endpoints", async () => {
     const milestone = {
       id: "milestone-1",

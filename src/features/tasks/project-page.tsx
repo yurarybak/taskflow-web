@@ -7,6 +7,7 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import {
   Blocks,
+  Bell,
   Bug,
   CalendarDays,
   CheckSquare2,
@@ -67,6 +68,7 @@ import type {
   Worklog,
   Role,
   SavedTaskFilter,
+  TaskReminder,
 } from "../../lib/types";
 
 const statuses: TaskStatus[] = ["TODO", "IN_PROGRESS", "DONE"];
@@ -156,6 +158,8 @@ const formatEstimate = (minutes?: number | null) => {
 };
 const formatEstimateLabel = (minutes?: number | null) =>
   formatEstimate(minutes) || "0m";
+const formatDateInput = (date: Date) => format(date, "yyyy-MM-dd");
+const formatTimeInput = (date: Date) => format(date, "HH:mm");
 const parseEstimate = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return { minutes: null, error: undefined };
@@ -1918,6 +1922,183 @@ function MilestoneDropdown({
     </div>
   );
 }
+function TaskReminders({ task }: { task: Task }) {
+  const client = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const now = new Date();
+  const defaultReminder = new Date(now.getTime() + 60 * 60 * 1000);
+  const [reminderDate, setReminderDate] = useState(
+    formatDateInput(defaultReminder),
+  );
+  const [reminderTime, setReminderTime] = useState(
+    formatTimeInput(defaultReminder),
+  );
+  const { data, isLoading } = useQuery({
+    queryKey: keys.reminders(task.id),
+    queryFn: () => api.reminders(task.id),
+  });
+  const reminders = [...(data ?? [])].sort(
+    (a, b) => new Date(a.remindAt).getTime() - new Date(b.remindAt).getTime(),
+  );
+  const pendingCount = reminders.filter((reminder) => !reminder.sentAt).length;
+  const refresh = () =>
+    client.invalidateQueries({ queryKey: keys.reminders(task.id) });
+  const setReminderValue = (date: Date) => {
+    setReminderDate(formatDateInput(date));
+    setReminderTime(formatTimeInput(date));
+  };
+  const createReminder = useMutation({
+    mutationFn: () => {
+      if (!reminderDate || !reminderTime) {
+        throw new Error("Reminder date and time are required");
+      }
+      return api.createReminder(
+        task.id,
+        new Date(`${reminderDate}T${reminderTime}:00`).toISOString(),
+      );
+    },
+    onSuccess: () => {
+      refresh();
+      setCreateOpen(false);
+      toast.success("Reminder created");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const removeReminder = useMutation({
+    mutationFn: (id: string) => api.removeReminder(task.id, id),
+    onSuccess: () => {
+      refresh();
+      toast.success("Reminder deleted");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const tomorrowNine = () => {
+    const value = new Date();
+    value.setDate(value.getDate() + 1);
+    value.setHours(9, 0, 0, 0);
+    setReminderValue(value);
+  };
+  const inOneHour = () =>
+    setReminderValue(new Date(Date.now() + 60 * 60 * 1000));
+  const onDueDate = () => {
+    if (!task.dueDate) return;
+    const value = new Date(task.dueDate);
+    if (value.getHours() === 0 && value.getMinutes() === 0) {
+      value.setHours(9, 0, 0, 0);
+    }
+    setReminderValue(value);
+  };
+  return (
+    <section className="task-details-panel reminders-panel">
+      <div className="section-title-row">
+        <h3>Reminders</h3>
+        {!!pendingCount && <Badge>{pendingCount} pending</Badge>}
+      </div>
+      <button
+        type="button"
+        className="add-reminder-button"
+        onClick={() => setCreateOpen(true)}
+      >
+        <Plus size={15} />
+        Add reminder
+      </button>
+      {isLoading ? (
+        <Skeleton rows={2} />
+      ) : reminders.length ? (
+        <div className="reminders-list">
+          {reminders.map((reminder: TaskReminder) => {
+            const pending = !reminder.sentAt;
+            return (
+              <article className="reminder-row" key={reminder.id}>
+                <Bell size={15} />
+                <div>
+                  <strong>
+                    {format(new Date(reminder.remindAt), "MMM d, HH:mm")}
+                  </strong>
+                  <span
+                    className={`reminder-status ${
+                      pending ? "pending" : "sent"
+                    }`}
+                  >
+                    {pending ? "Pending" : "Sent"}
+                  </span>
+                </div>
+                {pending && (
+                  <button
+                    type="button"
+                    aria-label="Delete reminder"
+                    disabled={removeReminder.isPending}
+                    onClick={() => removeReminder.mutate(reminder.id)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="reminders-empty">No reminders yet.</p>
+      )}
+      <Dialog
+        open={createOpen}
+        title="Remind me"
+        onClose={() => setCreateOpen(false)}
+      >
+        <form
+          className="reminder-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            createReminder.mutate();
+          }}
+        >
+          <div className="date-time-grid">
+            <Field label="Date">
+              <Input
+                type="date"
+                value={reminderDate}
+                required
+                onChange={(event) => setReminderDate(event.target.value)}
+              />
+            </Field>
+            <Field label="Time">
+              <Input
+                type="time"
+                value={reminderTime}
+                required
+                onChange={(event) => setReminderTime(event.target.value)}
+              />
+            </Field>
+          </div>
+          <div className="reminder-quick-options">
+            <span>Quick options</span>
+            <div>
+              <button type="button" onClick={tomorrowNine}>
+                Tomorrow 9:00
+              </button>
+              <button type="button" onClick={inOneHour}>
+                In 1 hour
+              </button>
+              <button type="button" disabled={!task.dueDate} onClick={onDueDate}>
+                On due date
+              </button>
+            </div>
+          </div>
+          <div className="modal-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setCreateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button loading={createReminder.isPending}>Create reminder</Button>
+          </div>
+        </form>
+      </Dialog>
+    </section>
+  );
+}
 const watcherUserId = (watcher: TaskWatcher) =>
   watcher.user?.id || watcher.userId || watcher.id || "";
 const watcherUser = (watcher: TaskWatcher): User => ({
@@ -2681,6 +2862,7 @@ function TaskModal({
               </button>
             </div>
           </section>
+          <TaskReminders task={task} />
           <section className="task-details-panel">
             <h3>Labels</h3>
             <div className="label-cloud">
