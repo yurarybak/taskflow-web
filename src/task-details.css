@@ -511,7 +511,13 @@
   font-size: 13px;
 }
 
-.reminder-row button {
+.reminder-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.reminder-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -524,12 +530,17 @@
   cursor: pointer;
 }
 
-.reminder-row button:hover {
+.reminder-actions button:hover {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.reminder-actions button:last-child:hover {
   background: #fee2e2;
   color: #dc2626;
 }
 
-.reminder-row button:disabled {
+.reminder-actions button:disabled {
   opacity: 0.6;
   cursor: default;
 }

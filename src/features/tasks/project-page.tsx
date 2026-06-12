@@ -1964,7 +1964,10 @@ function CollapsibleTaskSection({
 }
 function TaskReminders({ task }: { task: Task }) {
   const client = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
+  const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
+  const [editingReminder, setEditingReminder] = useState<TaskReminder | null>(
+    null,
+  );
   const now = new Date();
   const defaultReminder = new Date(now.getTime() + 60 * 60 * 1000);
   const [reminderDate, setReminderDate] = useState(
@@ -1987,20 +1990,34 @@ function TaskReminders({ task }: { task: Task }) {
     setReminderDate(formatDateInput(date));
     setReminderTime(formatTimeInput(date));
   };
-  const createReminder = useMutation({
+  const openCreateReminder = () => {
+    setEditingReminder(null);
+    setReminderValue(new Date(Date.now() + 60 * 60 * 1000));
+    setReminderDialogOpen(true);
+  };
+  const openEditReminder = (reminder: TaskReminder) => {
+    setEditingReminder(reminder);
+    setReminderValue(new Date(reminder.remindAt));
+    setReminderDialogOpen(true);
+  };
+  const closeReminderDialog = () => {
+    setReminderDialogOpen(false);
+    setEditingReminder(null);
+  };
+  const saveReminder = useMutation({
     mutationFn: () => {
       if (!reminderDate || !reminderTime) {
         throw new Error("Reminder date and time are required");
       }
-      return api.createReminder(
-        task.id,
-        new Date(`${reminderDate}T${reminderTime}:00`).toISOString(),
-      );
+      const remindAt = new Date(`${reminderDate}T${reminderTime}:00`).toISOString();
+      return editingReminder
+        ? api.updateReminder(task.id, editingReminder.id, remindAt)
+        : api.createReminder(task.id, remindAt);
     },
     onSuccess: () => {
       refresh();
-      setCreateOpen(false);
-      toast.success("Reminder created");
+      closeReminderDialog();
+      toast.success(editingReminder ? "Reminder updated" : "Reminder created");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -2037,7 +2054,7 @@ function TaskReminders({ task }: { task: Task }) {
       <button
         type="button"
         className="add-reminder-button"
-        onClick={() => setCreateOpen(true)}
+        onClick={openCreateReminder}
       >
         <Plus size={15} />
         Add reminder
@@ -2064,14 +2081,24 @@ function TaskReminders({ task }: { task: Task }) {
                   </span>
                 </div>
                 {pending && (
-                  <button
-                    type="button"
-                    aria-label="Delete reminder"
-                    disabled={removeReminder.isPending}
-                    onClick={() => removeReminder.mutate(reminder.id)}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="reminder-actions">
+                    <button
+                      type="button"
+                      aria-label="Edit reminder"
+                      disabled={saveReminder.isPending}
+                      onClick={() => openEditReminder(reminder)}
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Delete reminder"
+                      disabled={removeReminder.isPending}
+                      onClick={() => removeReminder.mutate(reminder.id)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 )}
               </article>
             );
@@ -2081,15 +2108,15 @@ function TaskReminders({ task }: { task: Task }) {
         <p className="reminders-empty">No reminders yet.</p>
       )}
       <Dialog
-        open={createOpen}
-        title="Remind me"
-        onClose={() => setCreateOpen(false)}
+        open={reminderDialogOpen}
+        title={editingReminder ? "Update reminder" : "Remind me"}
+        onClose={closeReminderDialog}
       >
         <form
           className="reminder-form"
           onSubmit={(event) => {
             event.preventDefault();
-            createReminder.mutate();
+            saveReminder.mutate();
           }}
         >
           <div className="date-time-grid">
@@ -2128,11 +2155,13 @@ function TaskReminders({ task }: { task: Task }) {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setCreateOpen(false)}
+              onClick={closeReminderDialog}
             >
               Cancel
             </Button>
-            <Button loading={createReminder.isPending}>Create reminder</Button>
+            <Button loading={saveReminder.isPending}>
+              {editingReminder ? "Save reminder" : "Create reminder"}
+            </Button>
           </div>
         </form>
       </Dialog>

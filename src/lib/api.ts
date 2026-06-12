@@ -558,6 +558,11 @@ export const api = {
       method: "POST",
       ...json({ remindAt }),
     }),
+  updateReminder: (taskId: string, id: string, remindAt: string) =>
+    request<TaskReminder>(`/tasks/${taskId}/reminders/${id}`, {
+      method: "PATCH",
+      ...json({ remindAt }),
+    }),
   removeReminder: (taskId: string, id: string) =>
     request<{ success: boolean }>(`/tasks/${taskId}/reminders/${id}`, {
       method: "DELETE",

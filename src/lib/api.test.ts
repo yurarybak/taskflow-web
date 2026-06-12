@@ -231,10 +231,12 @@ describe("api authentication", () => {
       .fn()
       .mockResolvedValueOnce(response(200, [reminder]))
       .mockResolvedValueOnce(response(200, reminder))
+      .mockResolvedValueOnce(response(200, { ...reminder, remindAt: "2026-06-12T11:00:00.000Z" }))
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
     await api.reminders("task-1");
     await api.createReminder("task-1", "2026-06-12T10:30:00.000Z");
+    await api.updateReminder("task-1", "reminder-1", "2026-06-12T11:00:00.000Z");
     await api.removeReminder("task-1", "reminder-1");
     expect(fetch).toHaveBeenNthCalledWith(
       1,
@@ -251,6 +253,14 @@ describe("api authentication", () => {
     );
     expect(fetch).toHaveBeenNthCalledWith(
       3,
+      "http://localhost:3000/tasks/task-1/reminders/reminder-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ remindAt: "2026-06-12T11:00:00.000Z" }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
       "http://localhost:3000/tasks/task-1/reminders/reminder-1",
       expect.objectContaining({ method: "DELETE" }),
     );
