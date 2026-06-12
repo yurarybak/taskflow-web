@@ -76,6 +76,69 @@ describe("api authentication", () => {
     );
   });
 
+  it("calls task export endpoints", async () => {
+    const taskExport = {
+      id: "export-1",
+      status: "COMPLETED",
+      fileName: "taskflow-tasks-2026-06-12.csv",
+      projectId: "project-1",
+      userId: "user-1",
+      createdAt: "2026-06-12T10:00:00.000Z",
+      updatedAt: "2026-06-12T10:01:00.000Z",
+      completedAt: "2026-06-12T10:01:00.000Z",
+    };
+    const csvResponse = new Response("id,title\n1,Task", {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition":
+          'attachment; filename="taskflow-tasks-2026-06-12.csv"',
+      },
+    });
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(200, [taskExport]))
+      .mockResolvedValueOnce(response(200, taskExport))
+      .mockResolvedValueOnce(response(200, taskExport))
+      .mockResolvedValueOnce(csvResponse)
+      .mockResolvedValueOnce(response(200, { success: true }));
+    vi.stubGlobal("fetch", fetch);
+    await api.taskExports("project-1", { page: 2, limit: 10 });
+    await api.taskExport("project-1", "export-1");
+    await api.createTaskExport("project-1");
+    await expect(
+      api.downloadTaskExport("project-1", "export-1"),
+    ).resolves.toMatchObject({
+      fileName: "taskflow-tasks-2026-06-12.csv",
+    });
+    await api.removeTaskExport("project-1", "export-1");
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:3000/projects/project-1/task-exports?page=2&limit=10",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:3000/projects/project-1/task-exports/export-1",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:3000/projects/project-1/task-exports",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://localhost:3000/projects/project-1/task-exports/export-1/download",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      5,
+      "http://localhost:3000/projects/project-1/task-exports/export-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
   it("calls task archive and unarchive endpoints", async () => {
     const fetch = vi
       .fn()

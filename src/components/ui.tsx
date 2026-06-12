@@ -12,9 +12,16 @@ export const Input = ({ className, ...props }: InputHTMLAttributes<HTMLInputElem
 export const Textarea = ({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea className={cn("input textarea", className)} {...props} />;
 export const Select = ({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) => <select className={cn("input select", className)} {...props} />;
 export const Badge = ({ children, tone = "neutral" }: { children: ReactNode; tone?: string }) => <span className={cn("badge", `badge-${tone.toLowerCase()}`)}>{children}</span>;
+const defaultAvatarSrc = "/default-avatar.svg";
 export const Avatar = ({ label, src }: { label: string; src?: string }) => {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  return src && failedSrc !== src ? <img className="avatar" src={src} alt={label} onError={() => setFailedSrc(src)} /> : <span className="avatar avatar-fallback">{label}</span>;
+  if (src && failedSrc !== src) {
+    return <img className="avatar" src={src} alt={label} onError={() => setFailedSrc(src)} />;
+  }
+  if (failedSrc !== defaultAvatarSrc) {
+    return <img className="avatar avatar-default" src={defaultAvatarSrc} alt={label} onError={() => setFailedSrc(defaultAvatarSrc)} />;
+  }
+  return <span className="avatar avatar-fallback">{label}</span>;
 };
 export const Empty = ({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) => <div className="empty"><h3>{title}</h3><p>{detail}</p>{action}</div>;
 export const Skeleton = ({ rows = 4 }: { rows?: number }) => <div className="stack">{Array.from({ length: rows }, (_, i) => <div className="skeleton" key={i} />)}</div>;

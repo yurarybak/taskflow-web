@@ -148,6 +148,19 @@ export interface TaskReminder {
   createdAt: string;
   updatedAt?: string;
 }
+export type TaskExportStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+export interface TaskExport {
+  id: string;
+  status: TaskExportStatus | string;
+  fileName?: string | null;
+  storageName?: string | null;
+  error?: string | null;
+  projectId: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
+}
 export interface Worklog {
   id: string;
   timeSpentMinutes: number;

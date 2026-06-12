@@ -76,6 +76,7 @@ import type {
   Role,
   SavedTaskFilter,
   TaskReminder,
+  TaskExport,
 } from "../../lib/types";
 
 const statuses: TaskStatus[] = ["TODO", "IN_PROGRESS", "DONE"];
@@ -3258,12 +3259,189 @@ function MilestonesTab({ projectId }: { projectId: string }) {
     </>
   );
 }
+function TaskExportsDialog({
+  projectId,
+  open,
+  onClose,
+}: {
+  projectId: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const client = useQueryClient();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, error } = useQuery({
+    queryKey: keys.taskExports(projectId, page),
+    queryFn: () => api.taskExports(projectId, { page, limit: 10 }),
+    enabled: open,
+    refetchInterval: (query) => {
+      if (!open) return false;
+      const exports = query.state.data?.data ?? [];
+      return exports.some(
+        (item) => item.status === "PENDING" || item.status === "PROCESSING",
+      )
+        ? 3000
+        : false;
+    },
+  });
+  const invalidate = () =>
+    client.invalidateQueries({ queryKey: ["task-exports", projectId] });
+  const createExport = useMutation({
+    mutationFn: () => api.createTaskExport(projectId),
+    onSuccess: () => {
+      setPage(1);
+      invalidate();
+      toast.success("Task export started");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const removeExport = useMutation({
+    mutationFn: (id: string) => api.removeTaskExport(projectId, id),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Task export deleted");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const downloadExport = useMutation({
+    mutationFn: async (taskExport: TaskExport) => {
+      const { blob, fileName } = await api.downloadTaskExport(
+        projectId,
+        taskExport.id,
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName || taskExport.fileName || "taskflow-tasks.csv";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const exports = data?.data ?? [];
+  return (
+    <Dialog open={open} title="Task exports" onClose={onClose}>
+      <div className="task-exports-dialog">
+        <div className="task-exports-intro">
+          <p>
+            Create a CSV export with all tasks in this project. Completed
+            exports can be downloaded later.
+          </p>
+          <Button
+            type="button"
+            loading={createExport.isPending}
+            onClick={() => createExport.mutate()}
+          >
+            <Download size={15} />
+            Create export
+          </Button>
+        </div>
+        {isLoading ? (
+          <Skeleton rows={3} />
+        ) : error ? (
+          <Empty title="Could not load exports" detail={error.message} />
+        ) : exports.length ? (
+          <div className="task-export-list">
+            {exports.map((taskExport) => {
+              const completed = taskExport.status === "COMPLETED";
+              const failed = taskExport.status === "FAILED";
+              return (
+                <article className="task-export-row" key={taskExport.id}>
+                  <div>
+                    <strong>
+                      {taskExport.fileName ||
+                        `Task export ${taskExport.id.slice(0, 8)}`}
+                    </strong>
+                    <small>
+                      Created {format(new Date(taskExport.createdAt), "MMM d, HH:mm")}
+                    </small>
+                    {taskExport.completedAt && (
+                      <small>
+                        Completed{" "}
+                        {format(new Date(taskExport.completedAt), "MMM d, HH:mm")}
+                      </small>
+                    )}
+                    {taskExport.error && <em>{taskExport.error}</em>}
+                  </div>
+                  <span
+                    className={[
+                      "task-export-status",
+                      completed ? "completed" : "",
+                      failed ? "failed" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    {humanizeConstant(taskExport.status)}
+                  </span>
+                  <div className="task-export-actions">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={!completed || downloadExport.isPending}
+                      onClick={() => downloadExport.mutate(taskExport)}
+                    >
+                      <Download size={14} />
+                      Download
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-label="Delete export"
+                      disabled={removeExport.isPending}
+                      onClick={() => removeExport.mutate(taskExport.id)}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <Empty
+            title="No exports yet"
+            detail="Create a CSV export when you need a local copy of all tasks."
+          />
+        )}
+        {data && data.meta.totalPages > 1 && (
+          <div className="task-export-pagination">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={page <= 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+            >
+              Previous
+            </Button>
+            <span>
+              Page {data.meta.page} of {data.meta.totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={page >= data.meta.totalPages}
+              onClick={() =>
+                setPage((value) => Math.min(data.meta.totalPages, value + 1))
+              }
+            >
+              Next
+            </Button>
+          </div>
+        )}
+      </div>
+    </Dialog>
+  );
+}
 export function ProjectPage() {
   const { workspaceId = "", projectId = "" } = useParams();
   const client = useQueryClient();
   const filtersRef = useRef<HTMLDivElement>(null);
   const restoredSavedFilterProjectRef = useRef<string | null>(null);
   const [create, setCreate] = useState(false);
+  const [exportsOpen, setExportsOpen] = useState(false);
   const [projectTab, setProjectTab] = useState<"tasks" | "milestones">("tasks");
   const [view, setView] = useState<"list" | "board">("board");
   const [filters, setFilters] = useState<TaskFilters>({});
@@ -3563,9 +3741,14 @@ export function ProjectPage() {
           </p>
         </div>
         {projectTab === "tasks" && (
-          <Button onClick={() => setCreate(true)}>
-            <Plus size={16} /> New task
-          </Button>
+          <div className="page-header-actions">
+            <Button variant="secondary" onClick={() => setExportsOpen(true)}>
+              <Download size={16} /> Export tasks
+            </Button>
+            <Button onClick={() => setCreate(true)}>
+              <Plus size={16} /> New task
+            </Button>
+          </div>
         )}
       </header>
       <nav className="tabs project-tabs">
@@ -4113,6 +4296,11 @@ export function ProjectPage() {
           >
             <TaskForm projectId={projectId} onClose={() => setCreate(false)} />
           </Dialog>
+          <TaskExportsDialog
+            projectId={projectId}
+            open={exportsOpen}
+            onClose={() => setExportsOpen(false)}
+          />
           {selected && (
             <TaskModal
               key={selected.id}

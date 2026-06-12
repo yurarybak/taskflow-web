@@ -13,6 +13,7 @@ import type {
   Project,
   SavedTaskFilter,
   Task,
+  TaskExport,
   TaskFilters,
   TaskReminder,
   TaskWatcher,
@@ -81,6 +82,39 @@ async function request<T>(
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+async function requestBlob(path: string, init: RequestInit = {}, retry = true) {
+  const headers = new Headers(init.headers);
+  const token = tokenStorage.getAccess();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`${API_URL}${path}`, { ...init, headers });
+  if (
+    response.status === 401 &&
+    retry &&
+    tokenStorage.getRefresh() &&
+    path !== "/auth/refresh"
+  ) {
+    refreshPromise ||= refreshSession().finally(() => {
+      refreshPromise = null;
+    });
+    if (await refreshPromise) return requestBlob(path, init, false);
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const message = Array.isArray(body.message)
+      ? body.message.join(", ")
+      : body.message;
+    throw new ApiError(response.status, message || "Something went wrong");
+  }
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const fileName =
+    disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1] ||
+    disposition.match(/filename="?([^"]+)"?/i)?.[1] ||
+    "taskflow-tasks.csv";
+  return {
+    blob: await response.blob(),
+    fileName: decodeURIComponent(fileName),
+  };
 }
 const json = (body: unknown) => ({ body: JSON.stringify(body) });
 const query = (values: Record<string, unknown>) => {
@@ -325,6 +359,28 @@ export const api = {
         `/projects/${projectId}/tasks${query({ ...filters })}`,
       ),
     ),
+  taskExports: async (
+    projectId: string,
+    filters: { page?: number; limit?: number } = {},
+  ) =>
+    normalizePage(
+      await request<Page<TaskExport> | TaskExport[]>(
+        `/projects/${projectId}/task-exports${query(filters)}`,
+      ),
+    ),
+  taskExport: (projectId: string, id: string) =>
+    request<TaskExport>(`/projects/${projectId}/task-exports/${id}`),
+  createTaskExport: (projectId: string) =>
+    request<TaskExport>(`/projects/${projectId}/task-exports`, {
+      method: "POST",
+    }),
+  removeTaskExport: (projectId: string, id: string) =>
+    request<{ success: boolean }>(
+      `/projects/${projectId}/task-exports/${id}`,
+      { method: "DELETE" },
+    ),
+  downloadTaskExport: (projectId: string, id: string) =>
+    requestBlob(`/projects/${projectId}/task-exports/${id}/download`),
   task: async (projectId: string, id: string) =>
     normalizeTask(await request<Task>(`/projects/${projectId}/tasks/${id}`)),
   createTask: async (projectId: string, body: Partial<Task>) =>

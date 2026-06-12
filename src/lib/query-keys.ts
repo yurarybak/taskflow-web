@@ -14,6 +14,10 @@ export const keys = {
   unreadNotifications: ["notifications", "unread-count"] as const,
   tasks: (id: string, filters: object = {}) => ["tasks", id, filters] as const,
   task: (projectId: string, id: string) => ["task", projectId, id] as const,
+  taskExports: (projectId: string, page = 1) =>
+    ["task-exports", projectId, page] as const,
+  taskExport: (projectId: string, id: string) =>
+    ["task-export", projectId, id] as const,
   labels: (id: string) => ["labels", id] as const,
   comments: (id: string) => ["comments", id] as const,
   checklist: (id: string) => ["checklist", id] as const,
