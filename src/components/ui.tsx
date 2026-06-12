@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { createPortal } from "react-dom";
 import { LoaderCircle, X } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -18,12 +19,13 @@ export const Avatar = ({ label, src }: { label: string; src?: string }) => {
 export const Empty = ({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) => <div className="empty"><h3>{title}</h3><p>{detail}</p>{action}</div>;
 export const Skeleton = ({ rows = 4 }: { rows?: number }) => <div className="stack">{Array.from({ length: rows }, (_, i) => <div className="skeleton" key={i} />)}</div>;
 export const Field = ({ label, error, children }: { label: string; error?: string; children: ReactNode }) => <label className="field"><span>{label}</span>{children}{error && <small>{error}</small>}</label>;
-export const Dialog = ({ open, title, children, onClose, wide = false, actions }: { open: boolean; title: string; children: ReactNode; onClose: () => void; wide?: boolean; actions?: ReactNode }) => open ? (
+export const Dialog = ({ open, title, children, onClose, wide = false, actions }: { open: boolean; title: string; children: ReactNode; onClose: () => void; wide?: boolean; actions?: ReactNode }) => open ? createPortal(
   <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
     <section className={cn("dialog", wide && "dialog-wide")} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
       <header><h2>{title}</h2><div className="dialog-header-actions">{actions}<Button variant="ghost" aria-label="Close" onClick={onClose}><X size={17} /></Button></div></header>{children}
     </section>
-  </div>
+  </div>,
+  document.body,
 ) : null;
 export const ConfirmDialog = ({
   open,
