@@ -13,6 +13,7 @@ import {
   CheckSquare2,
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Clock,
   Download,
@@ -33,7 +34,13 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -1922,6 +1929,39 @@ function MilestoneDropdown({
     </div>
   );
 }
+function CollapsibleTaskSection({
+  title,
+  children,
+  className,
+  actions,
+  defaultOpen = true,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+  actions?: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section
+      className={["task-details-panel", className].filter(Boolean).join(" ")}
+    >
+      <div className="collapsible-section-header">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          <span>{title}</span>
+        </button>
+        {actions}
+      </div>
+      {open && <div className="collapsible-section-body">{children}</div>}
+    </section>
+  );
+}
 function TaskReminders({ task }: { task: Task }) {
   const client = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
@@ -1989,11 +2029,11 @@ function TaskReminders({ task }: { task: Task }) {
     setReminderValue(value);
   };
   return (
-    <section className="task-details-panel reminders-panel">
-      <div className="section-title-row">
-        <h3>Reminders</h3>
-        {!!pendingCount && <Badge>{pendingCount} pending</Badge>}
-      </div>
+    <CollapsibleTaskSection
+      title="Reminders"
+      className="reminders-panel"
+      actions={!!pendingCount && <Badge>{pendingCount} pending</Badge>}
+    >
       <button
         type="button"
         className="add-reminder-button"
@@ -2096,7 +2136,7 @@ function TaskReminders({ task }: { task: Task }) {
           </div>
         </form>
       </Dialog>
-    </section>
+    </CollapsibleTaskSection>
   );
 }
 const watcherUserId = (watcher: TaskWatcher) =>
@@ -2708,8 +2748,7 @@ function TaskModal({
               </span>
             )}
           </div>
-          <section className="task-details-panel">
-            <h3>Details</h3>
+          <CollapsibleTaskSection title="Details">
             <div className="detail-person-row">
               <span>Assignee</span>
               <div className="assignee-detail">
@@ -2861,10 +2900,9 @@ function TaskModal({
                 </small>
               </button>
             </div>
-          </section>
+          </CollapsibleTaskSection>
           <TaskReminders task={task} />
-          <section className="task-details-panel">
-            <h3>Labels</h3>
+          <CollapsibleTaskSection title="Labels">
             <div className="label-cloud">
               {labels?.map((label) => (
                 <button
@@ -2881,7 +2919,7 @@ function TaskModal({
                 </button>
               ))}
             </div>
-          </section>
+          </CollapsibleTaskSection>
         </aside>
       </div>
       <ConfirmDialog
