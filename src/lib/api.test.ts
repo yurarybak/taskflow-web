@@ -83,6 +83,8 @@ describe("api authentication", () => {
       fileName: "taskflow-tasks-2026-06-12.csv",
       projectId: "project-1",
       userId: "user-1",
+      jobId: "task-export-export-1",
+      filters: { statuses: ["TODO"] },
       createdAt: "2026-06-12T10:00:00.000Z",
       updatedAt: "2026-06-12T10:01:00.000Z",
       completedAt: "2026-06-12T10:01:00.000Z",
@@ -100,6 +102,7 @@ describe("api authentication", () => {
       .mockResolvedValueOnce(response(200, [taskExport]))
       .mockResolvedValueOnce(response(200, taskExport))
       .mockResolvedValueOnce(response(200, taskExport))
+      .mockResolvedValueOnce(response(200, { ...taskExport, status: "CANCELLED" }))
       .mockResolvedValueOnce(csvResponse)
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
@@ -115,6 +118,7 @@ describe("api authentication", () => {
       includeArchived: true,
       search: "auth",
     });
+    await api.cancelTaskExport("project-1", "export-1");
     await expect(
       api.downloadTaskExport("project-1", "export-1"),
     ).resolves.toMatchObject({
@@ -150,11 +154,16 @@ describe("api authentication", () => {
     );
     expect(fetch).toHaveBeenNthCalledWith(
       4,
+      "http://localhost:3000/projects/project-1/task-exports/export-1/cancel",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      5,
       "http://localhost:3000/projects/project-1/task-exports/export-1/download",
       expect.any(Object),
     );
     expect(fetch).toHaveBeenNthCalledWith(
-      5,
+      6,
       "http://localhost:3000/projects/project-1/task-exports/export-1",
       expect.objectContaining({ method: "DELETE" }),
     );

@@ -411,6 +411,11 @@
   color: #b91c1c;
 }
 
+.task-export-status.cancelled {
+  background: #eef1f5;
+  color: #596579;
+}
+
 .task-export-actions,
 .task-export-pagination {
   display: flex;

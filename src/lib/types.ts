@@ -164,13 +164,16 @@ export type TaskExportStatus =
   | "PENDING"
   | "PROCESSING"
   | "COMPLETED"
-  | "FAILED";
+  | "FAILED"
+  | "CANCELLED";
 export interface TaskExport {
   id: string;
   status: TaskExportStatus | string;
   fileName?: string | null;
   storageName?: string | null;
   error?: string | null;
+  filters?: Record<string, unknown> | null;
+  jobId?: string | null;
   projectId: string;
   userId: string;
   createdAt: string;

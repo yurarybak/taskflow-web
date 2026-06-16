@@ -3411,6 +3411,14 @@ function TaskExportsDialog({
     },
     onError: (e) => toast.error(e.message),
   });
+  const cancelExport = useMutation({
+    mutationFn: (id: string) => api.cancelTaskExport(projectId, id),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Task export cancelled");
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const downloadExport = useMutation({
     mutationFn: async (taskExport: TaskExport) => {
       const { blob, fileName } = await api.downloadTaskExport(
@@ -3769,6 +3777,10 @@ function TaskExportsDialog({
             {exports.map((taskExport) => {
               const completed = taskExport.status === "COMPLETED";
               const failed = taskExport.status === "FAILED";
+              const cancelled = taskExport.status === "CANCELLED";
+              const cancellable =
+                taskExport.status === "PENDING" ||
+                taskExport.status === "PROCESSING";
               return (
                 <article className="task-export-row" key={taskExport.id}>
                   <div>
@@ -3792,6 +3804,7 @@ function TaskExportsDialog({
                       "task-export-status",
                       completed ? "completed" : "",
                       failed ? "failed" : "",
+                      cancelled ? "cancelled" : "",
                     ]
                       .filter(Boolean)
                       .join(" ")}
@@ -3799,15 +3812,27 @@ function TaskExportsDialog({
                     {humanizeConstant(taskExport.status)}
                   </span>
                   <div className="task-export-actions">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={!completed || downloadExport.isPending}
-                      onClick={() => downloadExport.mutate(taskExport)}
-                    >
-                      <Download size={14} />
-                      Download
-                    </Button>
+                    {cancellable ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={cancelExport.isPending}
+                        onClick={() => cancelExport.mutate(taskExport.id)}
+                      >
+                        <X size={14} />
+                        Cancel
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={!completed || downloadExport.isPending}
+                        onClick={() => downloadExport.mutate(taskExport)}
+                      >
+                        <Download size={14} />
+                        Download
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
