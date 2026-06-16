@@ -14,6 +14,7 @@ import type {
   SavedTaskFilter,
   Task,
   TaskExport,
+  TaskExportFilters,
   TaskFilters,
   TaskReminder,
   TaskWatcher,
@@ -370,9 +371,10 @@ export const api = {
     ),
   taskExport: (projectId: string, id: string) =>
     request<TaskExport>(`/projects/${projectId}/task-exports/${id}`),
-  createTaskExport: (projectId: string) =>
+  createTaskExport: (projectId: string, filters: TaskExportFilters = {}) =>
     request<TaskExport>(`/projects/${projectId}/task-exports`, {
       method: "POST",
+      ...json(filters),
     }),
   removeTaskExport: (projectId: string, id: string) =>
     request<{ success: boolean }>(

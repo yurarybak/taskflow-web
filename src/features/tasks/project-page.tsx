@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent,
@@ -77,6 +78,7 @@ import type {
   SavedTaskFilter,
   TaskReminder,
   TaskExport,
+  TaskExportFilters,
 } from "../../lib/types";
 
 const statuses: TaskStatus[] = ["TODO", "IN_PROGRESS", "DONE"];
@@ -104,6 +106,48 @@ const cleanTaskFilters = (filters: TaskFilters): TaskFilters => ({
     : {}),
   ...(filters.withoutMilestone ? { withoutMilestone: true } : {}),
 });
+const cleanTaskExportFilters = (
+  filters: TaskExportFilters,
+): TaskExportFilters => ({
+  ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
+  ...(filters.statuses?.length ? { statuses: filters.statuses } : {}),
+  ...(filters.priorities?.length ? { priorities: filters.priorities } : {}),
+  ...(filters.types?.length ? { types: filters.types } : {}),
+  ...(filters.assigneeIds?.length ? { assigneeIds: filters.assigneeIds } : {}),
+  ...(filters.labelIds?.length ? { labelIds: filters.labelIds } : {}),
+  ...(filters.milestoneIds?.length
+    ? { milestoneIds: filters.milestoneIds }
+    : {}),
+  ...(filters.withoutAssignee ? { withoutAssignee: true } : {}),
+  ...(filters.withoutMilestone ? { withoutMilestone: true } : {}),
+  ...(filters.includeArchived ? { includeArchived: true } : {}),
+});
+const exportFiltersFromTaskFilters = (filters: TaskFilters): TaskExportFilters =>
+  cleanTaskExportFilters({
+    search: filters.search,
+    statuses: filters.statuses,
+    priorities: filters.priorities,
+    types: filters.types,
+    assigneeIds: filters.assigneeIds,
+    milestoneIds: filters.milestoneIds,
+    withoutAssignee: filters.unassigned,
+    withoutMilestone: filters.withoutMilestone,
+  });
+const taskExportFilterCount = (filters: TaskExportFilters) => {
+  const clean = cleanTaskExportFilters(filters);
+  return (
+    (clean.statuses?.length ?? 0) +
+    (clean.priorities?.length ?? 0) +
+    (clean.types?.length ?? 0) +
+    (clean.assigneeIds?.length ?? 0) +
+    (clean.labelIds?.length ?? 0) +
+    (clean.milestoneIds?.length ?? 0) +
+    (clean.withoutAssignee ? 1 : 0) +
+    (clean.withoutMilestone ? 1 : 0) +
+    (clean.includeArchived ? 1 : 0) +
+    (clean.search ? 1 : 0)
+  );
+};
 const taskFiltersRecord = (filters: TaskFilters): Record<string, unknown> => ({
   ...filters,
 });
@@ -3261,15 +3305,42 @@ function MilestonesTab({ projectId }: { projectId: string }) {
 }
 function TaskExportsDialog({
   projectId,
+  members,
+  milestones,
+  labels,
+  currentFilters,
   open,
   onClose,
 }: {
   projectId: string;
+  members?: Member[];
+  milestones?: Milestone[];
+  labels?: Label[];
+  currentFilters: TaskFilters;
   open: boolean;
   onClose: () => void;
 }) {
   const client = useQueryClient();
+  const exportFiltersRef = useRef<HTMLDivElement>(null);
+  const currentBoardExportFilters = useMemo(
+    () => exportFiltersFromTaskFilters(currentFilters),
+    [currentFilters],
+  );
   const [page, setPage] = useState(1);
+  const [openExportFilter, setOpenExportFilter] = useState<
+    | "statuses"
+    | "priorities"
+    | "types"
+    | "assignees"
+    | "milestones"
+    | "labels"
+    | null
+  >(null);
+  const [exportFilters, setExportFilters] = useState<TaskExportFilters>(
+    currentBoardExportFilters,
+  );
+  const activeExportFilterCount = taskExportFilterCount(exportFilters);
+  const currentBoardFilterCount = taskExportFilterCount(currentBoardExportFilters);
   const { data, isLoading, error } = useQuery({
     queryKey: keys.taskExports(projectId, page),
     queryFn: () => api.taskExports(projectId, { page, limit: 10 }),
@@ -3286,8 +3357,45 @@ function TaskExportsDialog({
   });
   const invalidate = () =>
     client.invalidateQueries({ queryKey: ["task-exports", projectId] });
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (
+        exportFiltersRef.current &&
+        !exportFiltersRef.current.contains(event.target as Node)
+      ) {
+        setOpenExportFilter(null);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick, true);
+    return () =>
+      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
+  }, []);
+  const toggleExportArrayValue = (
+    key:
+      | "statuses"
+      | "priorities"
+      | "types"
+      | "assigneeIds"
+      | "labelIds"
+      | "milestoneIds",
+    value: string,
+  ) => {
+    const current = (exportFilters[key] as string[] | undefined) ?? [];
+    const next = current.includes(value)
+      ? current.filter((item) => item !== value)
+      : [...current, value];
+    setExportFilters({
+      ...exportFilters,
+      [key]: next.length ? next : undefined,
+      ...(key === "assigneeIds" && next.length ? { withoutAssignee: false } : {}),
+      ...(key === "milestoneIds" && next.length
+        ? { withoutMilestone: false }
+        : {}),
+    });
+  };
   const createExport = useMutation({
-    mutationFn: () => api.createTaskExport(projectId),
+    mutationFn: () =>
+      api.createTaskExport(projectId, cleanTaskExportFilters(exportFilters)),
     onSuccess: () => {
       setPage(1);
       invalidate();
@@ -3321,13 +3429,15 @@ function TaskExportsDialog({
     onError: (e) => toast.error(e.message),
   });
   const exports = data?.data ?? [];
+  const filterButtonLabel = (label: string, count: number) =>
+    count ? `${label}: ${count}` : label;
   return (
-    <Dialog open={open} title="Task exports" onClose={onClose}>
+    <Dialog open={open} title="Task exports" onClose={onClose} wide>
       <div className="task-exports-dialog">
         <div className="task-exports-intro">
           <p>
-            Create a CSV export with all tasks in this project. Completed
-            exports can be downloaded later.
+            Create a CSV export for this project. Use filters when you only
+            need a specific slice of work.
           </p>
           <Button
             type="button"
@@ -3335,9 +3445,321 @@ function TaskExportsDialog({
             onClick={() => createExport.mutate()}
           >
             <Download size={15} />
-            Create export
+            {activeExportFilterCount
+              ? `Create export (${activeExportFilterCount})`
+              : "Create export"}
           </Button>
         </div>
+        <section className="task-export-scope">
+          <div className="task-export-scope-header">
+            <div>
+              <h3>Export scope</h3>
+              <p>
+                {activeExportFilterCount
+                  ? `${activeExportFilterCount} filter${activeExportFilterCount > 1 ? "s" : ""} applied`
+                  : "No filters selected. Export will include all non-archived tasks."}
+              </p>
+            </div>
+            <div>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!currentBoardFilterCount}
+                onClick={() => setExportFilters(currentBoardExportFilters)}
+              >
+                Use current board filters
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={!activeExportFilterCount}
+                onClick={() => setExportFilters({})}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+          <Input
+            placeholder="Search exported tasks"
+            value={exportFilters.search || ""}
+            onChange={(event) =>
+              setExportFilters({
+                ...exportFilters,
+                search: event.target.value || undefined,
+              })
+            }
+          />
+          <div className="task-export-filter-bar" ref={exportFiltersRef}>
+            <div className="task-export-filter-popover">
+              <button
+                className={(exportFilters.statuses?.length ?? 0) ? "active" : ""}
+                type="button"
+                onClick={() =>
+                  setOpenExportFilter(
+                    openExportFilter === "statuses" ? null : "statuses",
+                  )
+                }
+              >
+                {filterButtonLabel("Status", exportFilters.statuses?.length ?? 0)}
+                <ChevronDown size={14} />
+              </button>
+              {openExportFilter === "statuses" && (
+                <div className="task-export-filter-menu compact">
+                  {statuses.map((status) => (
+                    <label className="task-export-filter-option" key={status}>
+                      <input
+                        type="checkbox"
+                        checked={(exportFilters.statuses ?? []).includes(status)}
+                        onChange={() => toggleExportArrayValue("statuses", status)}
+                      />
+                      <span>{statusLabel(status)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="task-export-filter-popover">
+              <button
+                className={
+                  (exportFilters.priorities?.length ?? 0) ? "active" : ""
+                }
+                type="button"
+                onClick={() =>
+                  setOpenExportFilter(
+                    openExportFilter === "priorities" ? null : "priorities",
+                  )
+                }
+              >
+                {filterButtonLabel(
+                  "Priority",
+                  exportFilters.priorities?.length ?? 0,
+                )}
+                <ChevronDown size={14} />
+              </button>
+              {openExportFilter === "priorities" && (
+                <div className="task-export-filter-menu compact">
+                  {priorities.map((priority) => (
+                    <label className="task-export-filter-option" key={priority}>
+                      <input
+                        type="checkbox"
+                        checked={(exportFilters.priorities ?? []).includes(
+                          priority,
+                        )}
+                        onChange={() =>
+                          toggleExportArrayValue("priorities", priority)
+                        }
+                      />
+                      <PriorityIcon priority={priority} />
+                      <span>{humanizeConstant(priority)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="task-export-filter-popover">
+              <button
+                className={(exportFilters.types?.length ?? 0) ? "active" : ""}
+                type="button"
+                onClick={() =>
+                  setOpenExportFilter(openExportFilter === "types" ? null : "types")
+                }
+              >
+                {filterButtonLabel("Type", exportFilters.types?.length ?? 0)}
+                <ChevronDown size={14} />
+              </button>
+              {openExportFilter === "types" && (
+                <div className="task-export-filter-menu compact">
+                  {types.map((type) => (
+                    <label className="task-export-filter-option" key={type}>
+                      <input
+                        type="checkbox"
+                        checked={(exportFilters.types ?? []).includes(type)}
+                        onChange={() => toggleExportArrayValue("types", type)}
+                      />
+                      <TypeIcon type={type} />
+                      <span>{humanizeConstant(type)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="task-export-filter-popover">
+              <button
+                className={
+                  (exportFilters.assigneeIds?.length ?? 0) ||
+                  exportFilters.withoutAssignee
+                    ? "active"
+                    : ""
+                }
+                type="button"
+                onClick={() =>
+                  setOpenExportFilter(
+                    openExportFilter === "assignees" ? null : "assignees",
+                  )
+                }
+              >
+                {filterButtonLabel(
+                  "Assignee",
+                  (exportFilters.assigneeIds?.length ?? 0) +
+                    (exportFilters.withoutAssignee ? 1 : 0),
+                )}
+                <ChevronDown size={14} />
+              </button>
+              {openExportFilter === "assignees" && (
+                <div className="task-export-filter-menu">
+                  <label className="task-export-filter-option">
+                    <input
+                      type="checkbox"
+                      checked={!!exportFilters.withoutAssignee}
+                      onChange={(event) =>
+                        setExportFilters({
+                          ...exportFilters,
+                          assigneeIds: event.target.checked
+                            ? undefined
+                            : exportFilters.assigneeIds,
+                          withoutAssignee: event.target.checked || undefined,
+                        })
+                      }
+                    />
+                    <span>Unassigned</span>
+                  </label>
+                  {members?.map((member) => (
+                    <label className="task-export-filter-option" key={member.id}>
+                      <input
+                        type="checkbox"
+                        checked={(exportFilters.assigneeIds ?? []).includes(
+                          member.user.id,
+                        )}
+                        onChange={() =>
+                          toggleExportArrayValue("assigneeIds", member.user.id)
+                        }
+                      />
+                      <Avatar
+                        label={initials(member.user)}
+                        src={api.avatarUrl(member.user.id)}
+                      />
+                      <span>{personName(member.user)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="task-export-filter-popover">
+              <button
+                className={
+                  (exportFilters.milestoneIds?.length ?? 0) ||
+                  exportFilters.withoutMilestone
+                    ? "active"
+                    : ""
+                }
+                type="button"
+                onClick={() =>
+                  setOpenExportFilter(
+                    openExportFilter === "milestones" ? null : "milestones",
+                  )
+                }
+              >
+                {filterButtonLabel(
+                  "Milestone",
+                  (exportFilters.milestoneIds?.length ?? 0) +
+                    (exportFilters.withoutMilestone ? 1 : 0),
+                )}
+                <ChevronDown size={14} />
+              </button>
+              {openExportFilter === "milestones" && (
+                <div className="task-export-filter-menu">
+                  <label className="task-export-filter-option">
+                    <input
+                      type="checkbox"
+                      checked={!!exportFilters.withoutMilestone}
+                      onChange={(event) =>
+                        setExportFilters({
+                          ...exportFilters,
+                          milestoneIds: event.target.checked
+                            ? undefined
+                            : exportFilters.milestoneIds,
+                          withoutMilestone: event.target.checked || undefined,
+                        })
+                      }
+                    />
+                    <span>Without milestone</span>
+                  </label>
+                  {milestones?.map((milestone) => (
+                    <label
+                      className="task-export-filter-option"
+                      key={milestone.id}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={(exportFilters.milestoneIds ?? []).includes(
+                          milestone.id,
+                        )}
+                        onChange={() =>
+                          toggleExportArrayValue("milestoneIds", milestone.id)
+                        }
+                      />
+                      <CalendarDays size={15} />
+                      <span>{milestone.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="task-export-filter-popover">
+              <button
+                className={(exportFilters.labelIds?.length ?? 0) ? "active" : ""}
+                type="button"
+                onClick={() =>
+                  setOpenExportFilter(
+                    openExportFilter === "labels" ? null : "labels",
+                  )
+                }
+              >
+                {filterButtonLabel("Labels", exportFilters.labelIds?.length ?? 0)}
+                <ChevronDown size={14} />
+              </button>
+              {openExportFilter === "labels" && (
+                <div className="task-export-filter-menu">
+                  {labels?.length ? (
+                    labels.map((label) => (
+                      <label className="task-export-filter-option" key={label.id}>
+                        <input
+                          type="checkbox"
+                          checked={(exportFilters.labelIds ?? []).includes(
+                            label.id,
+                          )}
+                          onChange={() =>
+                            toggleExportArrayValue("labelIds", label.id)
+                          }
+                        />
+                        <span
+                          className="task-export-label-dot"
+                          style={{ background: label.color }}
+                        />
+                        <span>{label.name}</span>
+                      </label>
+                    ))
+                  ) : (
+                    <p>No labels yet</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <label className="task-export-archive-toggle">
+            <input
+              type="checkbox"
+              checked={!!exportFilters.includeArchived}
+              onChange={(event) =>
+                setExportFilters({
+                  ...exportFilters,
+                  includeArchived: event.target.checked || undefined,
+                })
+              }
+            />
+            Include archived tasks
+          </label>
+        </section>
         {isLoading ? (
           <Skeleton rows={3} />
         ) : error ? (
@@ -3481,6 +3903,10 @@ export function ProjectPage() {
   const { data: milestones } = useQuery({
     queryKey: keys.milestones(projectId),
     queryFn: () => api.milestones(projectId),
+  });
+  const { data: labels } = useQuery({
+    queryKey: keys.labels(workspaceId),
+    queryFn: () => api.labels(workspaceId),
   });
   const { data: savedFilters } = useQuery({
     queryKey: keys.savedFilters(projectId),
@@ -4296,11 +4722,17 @@ export function ProjectPage() {
           >
             <TaskForm projectId={projectId} onClose={() => setCreate(false)} />
           </Dialog>
-          <TaskExportsDialog
-            projectId={projectId}
-            open={exportsOpen}
-            onClose={() => setExportsOpen(false)}
-          />
+          {exportsOpen && (
+            <TaskExportsDialog
+              projectId={projectId}
+              members={members}
+              milestones={milestones}
+              labels={labels}
+              currentFilters={filters}
+              open
+              onClose={() => setExportsOpen(false)}
+            />
+          )}
           {selected && (
             <TaskModal
               key={selected.id}

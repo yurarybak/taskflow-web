@@ -203,6 +203,151 @@
   line-height: 1.5;
 }
 
+.task-export-scope {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #e1e5eb;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.task-export-scope-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.task-export-scope-header h3 {
+  margin: 0 0 4px;
+  color: #172033;
+  font-size: 14px;
+}
+
+.task-export-scope-header p,
+.task-export-filter-grid p {
+  margin: 0;
+  color: #7a8597;
+  font-size: 12px;
+}
+
+.task-export-scope-header > div:last-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-export-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-export-filter-popover {
+  position: relative;
+}
+
+.task-export-filter-popover > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 116px;
+  height: 34px;
+  border: 1px solid #d9dee7;
+  border-radius: 6px;
+  background: #fff;
+  padding: 7px 10px;
+  color: #25324b;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.task-export-filter-popover > button:hover,
+.task-export-filter-popover > button.active {
+  border-color: #9ab6ed;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.task-export-filter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 45;
+  width: 260px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid #e1e5eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px;
+  box-shadow: 0 12px 30px #1018281a;
+}
+
+.task-export-filter-menu.compact {
+  width: 190px;
+}
+
+.task-export-filter-menu p {
+  margin: 8px;
+  color: #7a8597;
+  font-size: 13px;
+}
+
+.task-export-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border-radius: 6px;
+  padding: 6px;
+  color: #25324b;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.task-export-filter-option:hover {
+  background: #f8fafc;
+}
+
+.task-export-filter-option .avatar {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  font-size: 10px;
+}
+
+.task-export-filter-option svg,
+.task-export-filter-option input {
+  flex: none;
+}
+
+.task-export-filter-option span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-export-label-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 999px;
+}
+
+.task-export-archive-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  color: #25324b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .task-export-list {
   display: grid;
   gap: 8px;
@@ -369,5 +514,18 @@
   .task-filters .task-search {
     flex-basis: 260px;
     min-width: 260px;
+  }
+
+  .task-export-scope-header,
+  .task-export-row,
+  .task-exports-intro {
+    grid-template-columns: 1fr;
+  }
+
+  .task-export-scope-header > div:last-child,
+  .task-export-actions,
+  .page-header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }

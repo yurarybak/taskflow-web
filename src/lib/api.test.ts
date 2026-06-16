@@ -105,7 +105,16 @@ describe("api authentication", () => {
     vi.stubGlobal("fetch", fetch);
     await api.taskExports("project-1", { page: 2, limit: 10 });
     await api.taskExport("project-1", "export-1");
-    await api.createTaskExport("project-1");
+    await api.createTaskExport("project-1", {
+      statuses: ["TODO"],
+      priorities: ["HIGH"],
+      types: ["BUG"],
+      assigneeIds: ["user-1"],
+      labelIds: ["label-1"],
+      milestoneIds: ["milestone-1"],
+      includeArchived: true,
+      search: "auth",
+    });
     await expect(
       api.downloadTaskExport("project-1", "export-1"),
     ).resolves.toMatchObject({
@@ -125,7 +134,19 @@ describe("api authentication", () => {
     expect(fetch).toHaveBeenNthCalledWith(
       3,
       "http://localhost:3000/projects/project-1/task-exports",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          statuses: ["TODO"],
+          priorities: ["HIGH"],
+          types: ["BUG"],
+          assigneeIds: ["user-1"],
+          labelIds: ["label-1"],
+          milestoneIds: ["milestone-1"],
+          includeArchived: true,
+          search: "auth",
+        }),
+      }),
     );
     expect(fetch).toHaveBeenNthCalledWith(
       4,
