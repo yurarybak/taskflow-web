@@ -174,6 +174,7 @@ export interface TaskExport {
   error?: string | null;
   filters?: Record<string, unknown> | null;
   jobId?: string | null;
+  progress?: number | null;
   projectId: string;
   userId: string;
   createdAt: string;

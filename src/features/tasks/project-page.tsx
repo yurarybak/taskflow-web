@@ -3781,6 +3781,10 @@ function TaskExportsDialog({
               const cancellable =
                 taskExport.status === "PENDING" ||
                 taskExport.status === "PROCESSING";
+              const progress = Math.max(
+                0,
+                Math.min(100, taskExport.progress ?? (completed ? 100 : 0)),
+              );
               return (
                 <article className="task-export-row" key={taskExport.id}>
                   <div>
@@ -3797,6 +3801,12 @@ function TaskExportsDialog({
                         {format(new Date(taskExport.completedAt), "MMM d, HH:mm")}
                       </small>
                     )}
+                    <div className="task-export-progress">
+                      <span>
+                        <span style={{ width: `${progress}%` }} />
+                      </span>
+                      <small>{progress}%</small>
+                    </div>
                     {taskExport.error && <em>{taskExport.error}</em>}
                   </div>
                   <span

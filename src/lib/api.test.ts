@@ -85,6 +85,7 @@ describe("api authentication", () => {
       userId: "user-1",
       jobId: "task-export-export-1",
       filters: { statuses: ["TODO"] },
+      progress: 100,
       createdAt: "2026-06-12T10:00:00.000Z",
       updatedAt: "2026-06-12T10:01:00.000Z",
       completedAt: "2026-06-12T10:01:00.000Z",
