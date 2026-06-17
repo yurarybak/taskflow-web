@@ -226,6 +226,12 @@
   background: #f3f4f6;
 }
 
+.task-action-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: #edf0f3;
+}
+
 .task-modal-actions-popover button.danger {
   color: #dc2626;
   font-weight: 700;

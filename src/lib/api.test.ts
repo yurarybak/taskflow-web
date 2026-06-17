@@ -104,12 +104,14 @@ describe("api authentication", () => {
       .mockResolvedValueOnce(response(200, taskExport))
       .mockResolvedValueOnce(response(200, taskExport))
       .mockResolvedValueOnce(response(200, { ...taskExport, status: "CANCELLED" }))
+      .mockResolvedValueOnce(response(200, { ...taskExport, status: "PENDING" }))
       .mockResolvedValueOnce(csvResponse)
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
     await api.taskExports("project-1", { page: 2, limit: 10 });
     await api.taskExport("project-1", "export-1");
     await api.createTaskExport("project-1", {
+      taskIds: ["task-1"],
       statuses: ["TODO"],
       priorities: ["HIGH"],
       types: ["BUG"],
@@ -120,6 +122,7 @@ describe("api authentication", () => {
       search: "auth",
     });
     await api.cancelTaskExport("project-1", "export-1");
+    await api.retryTaskExport("project-1", "export-1");
     await expect(
       api.downloadTaskExport("project-1", "export-1"),
     ).resolves.toMatchObject({
@@ -142,6 +145,7 @@ describe("api authentication", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
+          taskIds: ["task-1"],
           statuses: ["TODO"],
           priorities: ["HIGH"],
           types: ["BUG"],
@@ -160,11 +164,16 @@ describe("api authentication", () => {
     );
     expect(fetch).toHaveBeenNthCalledWith(
       5,
+      "http://localhost:3000/projects/project-1/task-exports/export-1/retry",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      6,
       "http://localhost:3000/projects/project-1/task-exports/export-1/download",
       expect.any(Object),
     );
     expect(fetch).toHaveBeenNthCalledWith(
-      6,
+      7,
       "http://localhost:3000/projects/project-1/task-exports/export-1",
       expect.objectContaining({ method: "DELETE" }),
     );

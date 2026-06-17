@@ -149,6 +149,7 @@ export interface TaskReminder {
   updatedAt?: string;
 }
 export interface TaskExportFilters {
+  taskIds?: string[];
   statuses?: TaskStatus[];
   priorities?: TaskPriority[];
   types?: TaskType[];

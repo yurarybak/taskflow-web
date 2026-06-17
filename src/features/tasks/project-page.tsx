@@ -27,6 +27,7 @@ import {
   MoreHorizontal,
   Paperclip,
   Plus,
+  RefreshCw,
   Search,
   SquareCheck,
   Trash2,
@@ -109,6 +110,7 @@ const cleanTaskFilters = (filters: TaskFilters): TaskFilters => ({
 const cleanTaskExportFilters = (
   filters: TaskExportFilters,
 ): TaskExportFilters => ({
+  ...(filters.taskIds?.length ? { taskIds: filters.taskIds } : {}),
   ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
   ...(filters.statuses?.length ? { statuses: filters.statuses } : {}),
   ...(filters.priorities?.length ? { priorities: filters.priorities } : {}),
@@ -137,6 +139,7 @@ const taskExportFilterCount = (filters: TaskExportFilters) => {
   const clean = cleanTaskExportFilters(filters);
   return (
     (clean.statuses?.length ?? 0) +
+    (clean.taskIds?.length ?? 0) +
     (clean.priorities?.length ?? 0) +
     (clean.types?.length ?? 0) +
     (clean.assigneeIds?.length ?? 0) +
@@ -275,6 +278,17 @@ const serializeMentionText = (value: string, members?: Member[]) =>
         text.replaceAll(`@${mentionLabel(member)}`, `@[${member.user.id}]`),
       value,
     );
+const saveBlobFile = (blob: Blob, fileName: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const sanitizeRichText = (value: string) =>
   value
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
@@ -2521,6 +2535,41 @@ function TaskModal({
     },
     onError: (e) => toast.error(e.message),
   });
+  const exportTaskCsv = useMutation({
+    mutationFn: async () => {
+      const created = await api.createTaskExport(projectId, {
+        taskIds: [task.id],
+      });
+      let taskExport = created;
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        if (taskExport.status === "COMPLETED") {
+          const { blob, fileName } = await api.downloadTaskExport(
+            projectId,
+            taskExport.id,
+          );
+          saveBlobFile(blob, fileName || taskExport.fileName || "task.csv");
+          return;
+        }
+        if (taskExport.status === "FAILED" || taskExport.status === "CANCELLED") {
+          throw new Error(taskExport.error || "Task export could not be created");
+        }
+        await wait(1000);
+        taskExport = await api.taskExport(projectId, taskExport.id);
+      }
+      throw new Error(
+        "Task export is still running. Open Task exports to download it when ready.",
+      );
+    },
+    onMutate: () => toast.info("Preparing task CSV..."),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["task-exports", projectId] });
+      toast.success("Task CSV downloaded");
+    },
+    onError: (e) => {
+      client.invalidateQueries({ queryKey: ["task-exports", projectId] });
+      toast.error(e.message);
+    },
+  });
   const removeTask = useMutation({
     mutationFn: () => api.removeTask(projectId, task.id),
     onSuccess: () => {
@@ -2616,6 +2665,27 @@ function TaskModal({
               <div className="task-modal-actions-popover">
                 <button
                   type="button"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    setTimeTrackingOpen(true);
+                  }}
+                >
+                  Log work
+                </button>
+                <div className="task-action-divider" />
+                <button
+                  type="button"
+                  disabled={toggleFlag.isPending}
+                  onClick={() => {
+                    setActionsOpen(false);
+                    toggleFlag.mutate();
+                  }}
+                >
+                  {task.flaggedAt ? "Remove flag" : "Add flag"}
+                </button>
+                <div className="task-action-divider" />
+                <button
+                  type="button"
                   disabled={cloneTask.isPending}
                   onClick={() => {
                     setActionsOpen(false);
@@ -2636,16 +2706,6 @@ function TaskModal({
                 </button>
                 <button
                   type="button"
-                  disabled={toggleFlag.isPending}
-                  onClick={() => {
-                    setActionsOpen(false);
-                    toggleFlag.mutate();
-                  }}
-                >
-                  {task.flaggedAt ? "Remove flag" : "Add flag"}
-                </button>
-                <button
-                  type="button"
                   className="danger"
                   disabled={removeTask.isPending}
                   onClick={() => {
@@ -2654,6 +2714,17 @@ function TaskModal({
                   }}
                 >
                   Delete
+                </button>
+                <div className="task-action-divider" />
+                <button
+                  type="button"
+                  disabled={exportTaskCsv.isPending}
+                  onClick={() => {
+                    setActionsOpen(false);
+                    exportTaskCsv.mutate();
+                  }}
+                >
+                  Export CSV
                 </button>
               </div>
             )}
@@ -3419,20 +3490,21 @@ function TaskExportsDialog({
     },
     onError: (e) => toast.error(e.message),
   });
+  const retryExport = useMutation({
+    mutationFn: (id: string) => api.retryTaskExport(projectId, id),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Task export restarted");
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const downloadExport = useMutation({
     mutationFn: async (taskExport: TaskExport) => {
       const { blob, fileName } = await api.downloadTaskExport(
         projectId,
         taskExport.id,
       );
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName || taskExport.fileName || "taskflow-tasks.csv";
-      document.body.append(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      saveBlobFile(blob, fileName || taskExport.fileName || "taskflow-tasks.csv");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -3781,6 +3853,7 @@ function TaskExportsDialog({
               const cancellable =
                 taskExport.status === "PENDING" ||
                 taskExport.status === "PROCESSING";
+              const retryable = failed || cancelled;
               const progress = Math.max(
                 0,
                 Math.min(100, taskExport.progress ?? (completed ? 100 : 0)),
@@ -3831,6 +3904,16 @@ function TaskExportsDialog({
                       >
                         <X size={14} />
                         Cancel
+                      </Button>
+                    ) : retryable ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={retryExport.isPending}
+                        onClick={() => retryExport.mutate(taskExport.id)}
+                      >
+                        <RefreshCw size={14} />
+                        Retry
                       </Button>
                     ) : (
                       <Button

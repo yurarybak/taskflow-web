@@ -385,6 +385,10 @@ export const api = {
     request<TaskExport>(`/projects/${projectId}/task-exports/${id}/cancel`, {
       method: "PATCH",
     }),
+  retryTaskExport: (projectId: string, id: string) =>
+    request<TaskExport>(`/projects/${projectId}/task-exports/${id}/retry`, {
+      method: "PATCH",
+    }),
   downloadTaskExport: (projectId: string, id: string) =>
     requestBlob(`/projects/${projectId}/task-exports/${id}/download`),
   task: async (projectId: string, id: string) =>
