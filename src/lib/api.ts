@@ -448,6 +448,26 @@ export const api = {
         ...json(body),
       }),
     ),
+  createTaskFromTemplate: async (
+    projectId: string,
+    body: {
+      templateId: string;
+      title?: string;
+      assigneeId?: string | null;
+      dueDate?: string;
+    },
+  ) =>
+    normalizeTask(
+      await request<Task>(`/projects/${projectId}/tasks/from-template`, {
+        method: "POST",
+        ...json({
+          templateId: body.templateId,
+          ...(body.title?.trim() ? { title: body.title.trim() } : {}),
+          ...(body.assigneeId ? { assigneeId: body.assigneeId } : {}),
+          ...(body.dueDate ? { dueDate: body.dueDate } : {}),
+        }),
+      }),
+    ),
   updateTask: async (projectId: string, id: string, body: Partial<Task>) =>
     normalizeTask(
       await request<Task>(`/projects/${projectId}/tasks/${id}`, {

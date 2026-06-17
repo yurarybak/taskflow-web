@@ -39,6 +39,41 @@ describe("api authentication", () => {
     });
   });
 
+  it("creates a task from a template", async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      response(200, {
+        id: "task-1",
+        title: "Bug: login failure",
+        labels: [],
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    await expect(
+      api.createTaskFromTemplate("project-1", {
+        templateId: "template-1",
+        title: "Bug: login failure",
+        assigneeId: "user-1",
+        dueDate: "2026-06-18T00:00:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      id: "task-1",
+      title: "Bug: login failure",
+      labels: [],
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3000/projects/project-1/tasks/from-template",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          templateId: "template-1",
+          title: "Bug: login failure",
+          assigneeId: "user-1",
+          dueDate: "2026-06-18T00:00:00.000Z",
+        }),
+      }),
+    );
+  });
+
   it("serializes assignee filters as a comma-separated query value", async () => {
     const fetch = vi.fn().mockResolvedValue(response(200, []));
     vi.stubGlobal("fetch", fetch);

@@ -1,6 +1,20 @@
 .dialog.dialog-wide {
   width: min(96vw, 1180px);
-  padding: 24px 32px;
+  padding: 0;
+}
+
+.dialog.dialog-wide > header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  margin-bottom: 0;
+  border-bottom: 1px solid #edf0f3;
+  background: white;
+  padding: 24px 32px 16px;
+}
+
+.dialog.dialog-wide > header h2 {
+  min-width: 0;
 }
 
 .dialog-header-actions {
@@ -34,7 +48,9 @@
 .task-modal {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
+  align-items: start;
   gap: 28px;
+  padding: 24px 32px;
 }
 
 .task-modal-actions-menu {
@@ -242,6 +258,93 @@
   cursor: default;
 }
 
+.task-template-preview {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #e1e7f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.task-template-preview-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-template-preview-heading > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.task-template-preview-heading strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.task-template-preview-heading span {
+  overflow: hidden;
+  color: #596579;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-template-preview-badges,
+.task-template-preview-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-template-preview p {
+  margin: 0;
+  color: #596579;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.task-template-preview-labels span {
+  border: 1px solid;
+  border-radius: 999px;
+  background: white;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.task-template-create-note {
+  margin: -2px 0 0;
+  color: #687386;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.task-form {
+  display: block;
+}
+
+.task-form .input:not(.textarea),
+.task-form .select,
+.task-form .user-dropdown-button,
+.task-form .date-picker-field {
+  min-height: 38px;
+}
+
+.task-form .textarea {
+  min-height: 86px;
+  max-height: 160px;
+  line-height: 1.45;
+}
+
+.task-form .field {
+  margin-bottom: 12px;
+}
+
 .task-modal-main,
 .task-modal-side {
   min-width: 0;
@@ -249,13 +352,21 @@
 
 .task-modal-main {
   display: grid;
-  gap: 20px;
+  align-content: start;
+  grid-auto-rows: max-content;
+  gap: 22px;
+}
+
+.task-modal-main > section {
+  display: grid;
+  gap: 10px;
 }
 
 .task-modal-main h3 {
   display: flex;
   align-items: center;
   gap: 7px;
+  margin: 0;
   color: #172033;
   font-size: 14px;
   font-weight: 750;
@@ -272,7 +383,8 @@
   width: 100%;
   border: 0;
   background: transparent;
-  padding: 4px 0;
+  min-height: 34px;
+  padding: 2px 0;
   text-align: left;
   color: #172033;
   font-size: 24px;
@@ -306,7 +418,7 @@
 
 .editable-description {
   width: 100%;
-  min-height: 110px;
+  min-height: 76px;
   border: 1px solid #e1e5eb;
   border-radius: 8px;
   background: #f8fafc;
