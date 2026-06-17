@@ -758,6 +758,8 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
               <thead>
                 <tr>
                   <th>Template</th>
+                  <th>Used</th>
+                  <th>Last used</th>
                   <th>Updated</th>
                   <th></th>
                 </tr>
@@ -769,6 +771,14 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
                       <div className="template-table-title">
                         <strong>{template.name}</strong>
                       </div>
+                    </td>
+                    <td>{template.usageCount ?? 0}</td>
+                    <td>
+                      {template.lastUsedAt
+                        ? formatDistanceToNow(new Date(template.lastUsedAt), {
+                            addSuffix: true,
+                          })
+                        : "Never"}
                     </td>
                     <td>
                       {formatDistanceToNow(new Date(template.updatedAt), {

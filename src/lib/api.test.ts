@@ -121,6 +121,8 @@ describe("api authentication", () => {
       priority: "HIGH",
       workspaceId: "workspace-1",
       labels: [{ id: "label-1", name: "Bug", color: "#ef4444" }],
+      usageCount: 3,
+      lastUsedAt: "2026-06-17T11:00:00.000Z",
       createdAt: "2026-06-17T10:00:00.000Z",
       updatedAt: "2026-06-17T10:00:00.000Z",
     };

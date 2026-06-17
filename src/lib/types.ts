@@ -102,6 +102,8 @@ export interface TaskTemplate {
   priority: TaskPriority;
   workspaceId: string;
   labels: Pick<Label, "id" | "name" | "color">[];
+  usageCount?: number;
+  lastUsedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
