@@ -76,6 +76,76 @@ describe("api authentication", () => {
     );
   });
 
+  it("calls task template endpoints", async () => {
+    const template = {
+      id: "template-1",
+      name: "Bug report",
+      title: "Bug: short issue summary",
+      description: "Steps to reproduce...",
+      type: "BUG",
+      priority: "HIGH",
+      workspaceId: "workspace-1",
+      labels: [{ id: "label-1", name: "Bug", color: "#ef4444" }],
+      createdAt: "2026-06-17T10:00:00.000Z",
+      updatedAt: "2026-06-17T10:00:00.000Z",
+    };
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response(200, [template]))
+      .mockResolvedValueOnce(response(200, template))
+      .mockResolvedValueOnce(response(200, template))
+      .mockResolvedValueOnce(response(200, { ...template, name: "Bug" }))
+      .mockResolvedValueOnce(response(200, { success: true }));
+    vi.stubGlobal("fetch", fetch);
+    await api.taskTemplates("workspace-1", { page: 2, limit: 10 });
+    await api.taskTemplate("workspace-1", "template-1");
+    await api.createTaskTemplate("workspace-1", {
+      name: "Bug report",
+      title: "Bug: short issue summary",
+      description: "Steps to reproduce...",
+      type: "BUG",
+      priority: "HIGH",
+      labelIds: ["label-1"],
+    });
+    await api.updateTaskTemplate("workspace-1", "template-1", { name: "Bug" });
+    await api.removeTaskTemplate("workspace-1", "template-1");
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:3000/workspaces/workspace-1/task-templates?page=2&limit=10",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:3000/workspaces/workspace-1/task-templates/template-1",
+      expect.any(Object),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:3000/workspaces/workspace-1/task-templates",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "Bug report",
+          title: "Bug: short issue summary",
+          description: "Steps to reproduce...",
+          type: "BUG",
+          priority: "HIGH",
+          labelIds: ["label-1"],
+        }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://localhost:3000/workspaces/workspace-1/task-templates/template-1",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      5,
+      "http://localhost:3000/workspaces/workspace-1/task-templates/template-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
   it("calls task export endpoints", async () => {
     const taskExport = {
       id: "export-1",

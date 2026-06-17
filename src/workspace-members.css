@@ -15,3 +15,149 @@
 .member-cell small {
   display: block;
 }
+
+.template-toolbar-copy {
+  margin: 4px 0 0;
+  color: #7a8597;
+  font-size: 13px;
+}
+
+.empty .button {
+  margin-top: 12px;
+}
+
+.workspace-actions-menu {
+  position: relative;
+}
+
+.workspace-actions-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 170px;
+  overflow: hidden;
+  border: 1px solid #e1e5eb;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 12px 30px #1018281a;
+}
+
+.workspace-actions-popover button {
+  width: 100%;
+  border: 0;
+  background: #fff;
+  padding: 9px 12px;
+  color: #25324b;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.workspace-actions-popover button:hover {
+  background: #f3f4f6;
+}
+
+.workspace-actions-popover button.danger {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.template-toolbar {
+  justify-content: space-between;
+}
+
+.template-toolbar > div {
+  min-width: 0;
+}
+
+.template-toolbar > .button {
+  margin-left: auto;
+}
+
+.template-table-title strong {
+  display: block;
+}
+
+.template-table-title strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.template-label-picker {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.template-label-picker > span {
+  color: #172033;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.template-label-picker p {
+  margin: 0;
+  color: #7a8597;
+  font-size: 13px;
+}
+
+.template-label-dropdown {
+  position: relative;
+}
+
+.template-label-dropdown > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  width: 100%;
+  border: 1px solid #d9dee7;
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px 10px;
+  color: #25324b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.template-label-dropdown > button svg {
+  flex: none;
+}
+
+.template-label-dropdown > button:hover {
+  border-color: #9ab6ed;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.template-label-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 45;
+  width: 260px;
+  max-height: 230px;
+  overflow: auto;
+  border: 1px solid #e1e5eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px;
+  box-shadow: 0 12px 30px #1018281a;
+}
+
+.template-label-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  padding: 8px;
+  color: #25324b;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.template-label-menu label:hover {
+  background: #f8fafc;
+}

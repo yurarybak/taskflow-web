@@ -93,6 +93,18 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
 }
+export interface TaskTemplate {
+  id: string;
+  name: string;
+  title: string;
+  description?: string | null;
+  type: TaskType;
+  priority: TaskPriority;
+  workspaceId: string;
+  labels: Pick<Label, "id" | "name" | "color">[];
+  createdAt: string;
+  updatedAt: string;
+}
 export interface Comment {
   id: string;
   content: string;

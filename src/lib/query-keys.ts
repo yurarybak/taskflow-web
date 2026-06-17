@@ -2,6 +2,10 @@ export const keys = {
   workspaces: ["workspaces"] as const,
   workspace: (id: string) => ["workspace", id] as const,
   members: (id: string) => ["members", id] as const,
+  taskTemplates: (workspaceId: string, page = 1) =>
+    ["task-templates", workspaceId, page] as const,
+  taskTemplate: (workspaceId: string, id: string) =>
+    ["task-template", workspaceId, id] as const,
   projects: (id: string, search = "") => ["projects", id, search] as const,
   milestones: (projectId: string) => ["milestones", projectId] as const,
   milestone: (projectId: string, id: string) =>

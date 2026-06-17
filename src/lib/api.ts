@@ -17,6 +17,7 @@ import type {
   TaskExportFilters,
   TaskFilters,
   TaskReminder,
+  TaskTemplate,
   TaskWatcher,
   User,
   Worklog,
@@ -252,6 +253,53 @@ export const api = {
     request<{ success: boolean }>(`/workspaces/${id}/members/${memberId}`, {
       method: "DELETE",
     }),
+  taskTemplates: async (
+    workspaceId: string,
+    filters: { page?: number; limit?: number } = {},
+  ) =>
+    normalizePage(
+      await request<Page<TaskTemplate> | TaskTemplate[]>(
+        `/workspaces/${workspaceId}/task-templates${query(filters)}`,
+      ),
+    ),
+  taskTemplate: (workspaceId: string, id: string) =>
+    request<TaskTemplate>(`/workspaces/${workspaceId}/task-templates/${id}`),
+  createTaskTemplate: (
+    workspaceId: string,
+    body: {
+      name: string;
+      title: string;
+      description?: string;
+      type?: string;
+      priority?: string;
+      labelIds?: string[];
+    },
+  ) =>
+    request<TaskTemplate>(`/workspaces/${workspaceId}/task-templates`, {
+      method: "POST",
+      ...json(body),
+    }),
+  updateTaskTemplate: (
+    workspaceId: string,
+    id: string,
+    body: Partial<{
+      name: string;
+      title: string;
+      description: string;
+      type: string;
+      priority: string;
+      labelIds: string[];
+    }>,
+  ) =>
+    request<TaskTemplate>(`/workspaces/${workspaceId}/task-templates/${id}`, {
+      method: "PATCH",
+      ...json(body),
+    }),
+  removeTaskTemplate: (workspaceId: string, id: string) =>
+    request<{ success: boolean }>(
+      `/workspaces/${workspaceId}/task-templates/${id}`,
+      { method: "DELETE" },
+    ),
   projects: async (workspaceId: string, search = "") =>
     normalizePage(
       await request<Page<Project> | Project[]>(

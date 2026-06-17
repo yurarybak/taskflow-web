@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
+  ChevronDown,
   Edit3,
+  FileText,
   FolderKanban,
   MoreHorizontal,
   Plus,
@@ -10,12 +12,13 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Avatar,
   Button,
+  ConfirmDialog,
   Dialog,
   Empty,
   Field,
@@ -27,7 +30,24 @@ import {
 import { api } from "../../lib/api";
 import { keys } from "../../lib/query-keys";
 import { initials, personName } from "../../lib/utils";
-import type { Label, Member, Project, Role, Workspace } from "../../lib/types";
+import type {
+  Label,
+  Member,
+  Project,
+  Role,
+  TaskPriority,
+  TaskTemplate,
+  TaskType,
+  Workspace,
+} from "../../lib/types";
+
+const taskTemplateTypes: TaskType[] = ["TASK", "BUG", "FEATURE", "IMPROVEMENT"];
+const taskTemplatePriorities: TaskPriority[] = ["LOW", "MEDIUM", "HIGH"];
+const humanizeConstant = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/^\w/, (letter) => letter.toUpperCase());
 
 const useInvalidate = () => {
   const client = useQueryClient();
@@ -223,7 +243,7 @@ function ProjectsTab({ workspaceId }: { workspaceId: string }) {
   });
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar template-toolbar">
         <div className="search">
           <Search size={15} />
           <Input
@@ -510,10 +530,349 @@ function LabelsTab({ workspaceId }: { workspaceId: string }) {
     </>
   );
 }
+function TaskTemplateForm({
+  workspaceId,
+  labels,
+  initial,
+  onClose,
+}: {
+  workspaceId: string;
+  labels?: Label[];
+  initial?: TaskTemplate;
+  onClose: () => void;
+}) {
+  const invalidate = useInvalidate();
+  const [name, setName] = useState(initial?.name || "");
+  const [title, setTitle] = useState(initial?.title || "");
+  const [description, setDescription] = useState(initial?.description || "");
+  const [type, setType] = useState<TaskType>(initial?.type || "TASK");
+  const [priority, setPriority] = useState<TaskPriority>(
+    initial?.priority || "MEDIUM",
+  );
+  const [labelIds, setLabelIds] = useState(
+    initial?.labels.map((label) => label.id) ?? [],
+  );
+  const [labelsOpen, setLabelsOpen] = useState(false);
+  const labelPickerRef = useRef<HTMLDivElement>(null);
+  const toggleLabel = (labelId: string) => {
+    setLabelIds((current) =>
+      current.includes(labelId)
+        ? current.filter((id) => id !== labelId)
+        : [...current, labelId],
+    );
+  };
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (
+        labelPickerRef.current &&
+        !labelPickerRef.current.contains(event.target as Node)
+      ) {
+        setLabelsOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick, true);
+    return () =>
+      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
+  }, []);
+  const mutation = useMutation({
+    mutationFn: () => {
+      const body = {
+        name: name.trim(),
+        title: title.trim(),
+        description: description.trim() || undefined,
+        type,
+        priority,
+        labelIds,
+      };
+      return initial
+        ? api.updateTaskTemplate(workspaceId, initial.id, body)
+        : api.createTaskTemplate(workspaceId, body);
+    },
+    onSuccess: () => {
+      invalidate("task-templates", workspaceId);
+      toast.success(initial ? "Template updated" : "Template created");
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (name.trim().length >= 2 && title.trim().length >= 2)
+          mutation.mutate();
+      }}
+    >
+      <Field label="Template name">
+        <Input
+          value={name}
+          minLength={2}
+          maxLength={120}
+          required
+          onChange={(event) => setName(event.target.value)}
+        />
+      </Field>
+      <Field label="Task title">
+        <Input
+          value={title}
+          minLength={2}
+          maxLength={120}
+          required
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </Field>
+      <Field label="Description">
+        <Textarea
+          value={description}
+          maxLength={1000}
+          onChange={(event) => setDescription(event.target.value)}
+        />
+      </Field>
+      <div className="form-grid">
+        <Field label="Type">
+          <Select
+            value={type}
+            onChange={(event) => setType(event.target.value as TaskType)}
+          >
+            {taskTemplateTypes.map((value) => (
+              <option value={value} key={value}>
+                {humanizeConstant(value)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Priority">
+          <Select
+            value={priority}
+            onChange={(event) => setPriority(event.target.value as TaskPriority)}
+          >
+            {taskTemplatePriorities.map((value) => (
+              <option value={value} key={value}>
+                {humanizeConstant(value)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      <div className="template-label-picker">
+        <span>Labels</span>
+        {!labels?.length ? (
+          <p>No labels yet</p>
+        ) : (
+          <div className="template-label-dropdown" ref={labelPickerRef}>
+            <button type="button" onClick={() => setLabelsOpen((open) => !open)}>
+              {labelIds.length
+                ? `${labelIds.length} label${labelIds.length > 1 ? "s" : ""}`
+                : "Select labels"}
+              <ChevronDown size={14} />
+            </button>
+            {labelsOpen && (
+              <div className="template-label-menu">
+                {labels.map((label) => (
+                  <label key={label.id}>
+                    <input
+                      type="checkbox"
+                      checked={labelIds.includes(label.id)}
+                      onChange={() => toggleLabel(label.id)}
+                    />
+                    <span
+                      className="swatch"
+                      style={{ background: label.color }}
+                    />
+                    {label.name}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="dialog-actions">
+        <Button type="button" variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button loading={mutation.isPending}>
+          {initial ? "Save template" : "Create template"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
+  const invalidate = useInvalidate();
+  const [page, setPage] = useState(1);
+  const [create, setCreate] = useState(false);
+  const [edit, setEdit] = useState<TaskTemplate>();
+  const [deleteTemplate, setDeleteTemplate] = useState<TaskTemplate>();
+  const { data: labels } = useQuery({
+    queryKey: keys.labels(workspaceId),
+    queryFn: () => api.labels(workspaceId),
+  });
+  const { data, isLoading, error } = useQuery({
+    queryKey: keys.taskTemplates(workspaceId, page),
+    queryFn: () => api.taskTemplates(workspaceId, { page, limit: 10 }),
+  });
+  const remove = useMutation({
+    mutationFn: () => {
+      if (!deleteTemplate) throw new Error("No template selected");
+      return api.removeTaskTemplate(workspaceId, deleteTemplate.id);
+    },
+    onSuccess: () => {
+      setDeleteTemplate(undefined);
+      invalidate("task-templates", workspaceId);
+      toast.success("Template deleted");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <>
+      <div className="toolbar template-toolbar">
+        <div>
+          <strong>Reusable task blueprints</strong>
+          <p className="template-toolbar-copy">
+            Create templates now, then use them later when creating tasks.
+          </p>
+        </div>
+        <Button onClick={() => setCreate(true)}>
+          <Plus size={15} /> New template
+        </Button>
+      </div>
+      {isLoading ? (
+        <Skeleton />
+      ) : error ? (
+        <Empty title="Could not load templates" detail={error.message} />
+      ) : !data?.data.length ? (
+        <Empty
+          title="No task templates yet"
+          detail="Create templates for common tasks like bug reports, stories or recurring work."
+          action={
+            <Button onClick={() => setCreate(true)}>
+              <Plus size={15} /> New template
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Template</th>
+                  <th>Updated</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.data.map((template) => (
+                  <tr key={template.id}>
+                    <td>
+                      <div className="template-table-title">
+                        <strong>{template.name}</strong>
+                      </div>
+                    </td>
+                    <td>
+                      {formatDistanceToNow(new Date(template.updatedAt), {
+                        addSuffix: true,
+                      })}
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <Button
+                          variant="ghost"
+                          aria-label={`Edit ${template.name}`}
+                          onClick={() => setEdit(template)}
+                        >
+                          <Edit3 size={15} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          aria-label={`Delete ${template.name}`}
+                          onClick={() => setDeleteTemplate(template)}
+                        >
+                          <Trash2 size={15} />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {data.meta.totalPages > 1 && (
+            <div className="task-export-pagination">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+              >
+                Previous
+              </Button>
+              <span>
+                Page {data.meta.page} of {data.meta.totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={page >= data.meta.totalPages}
+                onClick={() =>
+                  setPage((value) => Math.min(data.meta.totalPages, value + 1))
+                }
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+      <Dialog
+        open={create}
+        title="New task template"
+        onClose={() => setCreate(false)}
+      >
+        <TaskTemplateForm
+          workspaceId={workspaceId}
+          labels={labels}
+          onClose={() => setCreate(false)}
+        />
+      </Dialog>
+      <Dialog
+        open={!!edit}
+        title="Edit task template"
+        onClose={() => setEdit(undefined)}
+      >
+        {edit && (
+          <TaskTemplateForm
+            workspaceId={workspaceId}
+            labels={labels}
+            initial={edit}
+            onClose={() => setEdit(undefined)}
+          />
+        )}
+      </Dialog>
+      <ConfirmDialog
+        open={!!deleteTemplate}
+        title="Delete task template?"
+        description={`Are you sure you want to delete "${
+          deleteTemplate?.name || "this template"
+        }"? This action cannot be undone.`}
+        confirmText="Delete template"
+        loading={remove.isPending}
+        onClose={() => setDeleteTemplate(undefined)}
+        onConfirm={() => remove.mutate()}
+      />
+    </>
+  );
+}
 export function WorkspacePage() {
   const { workspaceId = "" } = useParams();
-  const [tab, setTab] = useState<"projects" | "members" | "labels">("projects");
+  const [tab, setTab] = useState<
+    "projects" | "members" | "labels" | "templates"
+  >("projects");
   const [edit, setEdit] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [deleteWorkspaceOpen, setDeleteWorkspaceOpen] = useState(false);
+  const actionsRef = useRef<HTMLDivElement>(null);
   const invalidate = useInvalidate();
   const { data, isLoading } = useQuery({
     queryKey: keys.workspace(workspaceId),
@@ -526,6 +885,19 @@ export function WorkspacePage() {
       location.assign("/");
     },
   });
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (
+        actionsRef.current &&
+        !actionsRef.current.contains(event.target as Node)
+      ) {
+        setActionsOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick, true);
+    return () =>
+      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
+  }, []);
   if (isLoading || !data) return <Skeleton />;
   return (
     <>
@@ -541,15 +913,29 @@ export function WorkspacePage() {
           <Button variant="secondary" onClick={() => setEdit(true)}>
             <Edit3 size={15} /> Edit
           </Button>
-          <Button
-            variant="ghost"
-            onClick={() =>
-              confirm("Delete this workspace and everything inside it?") &&
-              remove.mutate()
-            }
-          >
-            <MoreHorizontal size={16} />
-          </Button>
+          <div className="workspace-actions-menu" ref={actionsRef}>
+            <Button
+              variant="ghost"
+              aria-label="Workspace actions"
+              onClick={() => setActionsOpen((open) => !open)}
+            >
+              <MoreHorizontal size={16} />
+            </Button>
+            {actionsOpen && (
+              <div className="workspace-actions-popover">
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    setDeleteWorkspaceOpen(true);
+                  }}
+                >
+                  Delete workspace
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
       <nav className="tabs">
@@ -571,17 +957,34 @@ export function WorkspacePage() {
         >
           <Tags size={15} /> Labels
         </button>
+        <button
+          className={tab === "templates" ? "active" : ""}
+          onClick={() => setTab("templates")}
+        >
+          <FileText size={15} /> Task templates
+        </button>
       </nav>
       {tab === "projects" ? (
         <ProjectsTab workspaceId={workspaceId} />
       ) : tab === "members" ? (
         <MembersTab workspaceId={workspaceId} />
-      ) : (
+      ) : tab === "labels" ? (
         <LabelsTab workspaceId={workspaceId} />
+      ) : (
+        <TaskTemplatesTab workspaceId={workspaceId} />
       )}
       <Dialog open={edit} title="Edit workspace" onClose={() => setEdit(false)}>
         <WorkspaceForm initial={data} onClose={() => setEdit(false)} />
       </Dialog>
+      <ConfirmDialog
+        open={deleteWorkspaceOpen}
+        title="Delete workspace?"
+        description={`Are you sure you want to delete "${data.name}" and everything inside it? This action cannot be undone.`}
+        confirmText="Delete workspace"
+        loading={remove.isPending}
+        onClose={() => setDeleteWorkspaceOpen(false)}
+        onConfirm={() => remove.mutate()}
+      />
     </>
   );
 }
