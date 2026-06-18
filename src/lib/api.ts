@@ -301,6 +301,11 @@ export const api = {
       `/workspaces/${workspaceId}/task-templates/${id}/duplicate`,
       { method: "POST" },
     ),
+  bulkDeleteTaskTemplates: (workspaceId: string, ids: string[]) =>
+    request<{ success: boolean }>(
+      `/workspaces/${workspaceId}/task-templates/bulk-delete`,
+      { method: "POST", ...json({ ids }) },
+    ),
   removeTaskTemplate: (workspaceId: string, id: string) =>
     request<{ success: boolean }>(
       `/workspaces/${workspaceId}/task-templates/${id}`,

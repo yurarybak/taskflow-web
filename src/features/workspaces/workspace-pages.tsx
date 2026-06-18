@@ -725,6 +725,8 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     "sortBy" | "sortOrder" | null
   >(null);
   const templateFiltersRef = useRef<HTMLDivElement>(null);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [create, setCreate] = useState(false);
   const [edit, setEdit] = useState<TaskTemplate>();
   const [deleteTemplate, setDeleteTemplate] = useState<TaskTemplate>();
@@ -747,12 +749,35 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     queryKey: keys.taskTemplates(workspaceId, templateFilters),
     queryFn: () => api.taskTemplates(workspaceId, templateFilters),
   });
+  const visibleTemplateIds = data?.data.map((template) => template.id) ?? [];
+  const selectedVisibleCount = visibleTemplateIds.filter((id) =>
+    selectedTemplateIds.includes(id),
+  ).length;
+  const allVisibleSelected =
+    !!visibleTemplateIds.length &&
+    selectedVisibleCount === visibleTemplateIds.length;
+  const toggleTemplateSelection = (templateId: string) => {
+    setSelectedTemplateIds((current) =>
+      current.includes(templateId)
+        ? current.filter((id) => id !== templateId)
+        : [...current, templateId],
+    );
+  };
+  const toggleVisibleTemplates = () => {
+    setSelectedTemplateIds((current) => {
+      if (allVisibleSelected) {
+        return current.filter((id) => !visibleTemplateIds.includes(id));
+      }
+      return Array.from(new Set([...current, ...visibleTemplateIds]));
+    });
+  };
   const resetTemplateFilters = () => {
     setSearch("");
     setSortBy("createdAt");
     setSortOrder("desc");
     setPage(1);
     setOpenTemplateFilter(null);
+    setSelectedTemplateIds([]);
   };
   useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -776,6 +801,16 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
       setDeleteTemplate(undefined);
       invalidate("task-templates", workspaceId);
       toast.success("Template deleted");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const bulkDelete = useMutation({
+    mutationFn: () => api.bulkDeleteTaskTemplates(workspaceId, selectedTemplateIds),
+    onSuccess: () => {
+      setBulkDeleteOpen(false);
+      setSelectedTemplateIds([]);
+      invalidate("task-templates", workspaceId);
+      toast.success("Templates deleted");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -810,6 +845,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
             onChange={(event) => {
               setSearch(event.target.value);
               setPage(1);
+              setSelectedTemplateIds([]);
             }}
           />
         </label>
@@ -842,6 +878,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
                   onClick={() => {
                     setSortBy(option.value);
                     setPage(1);
+                    setSelectedTemplateIds([]);
                     setOpenTemplateFilter(null);
                   }}
                 >
@@ -881,6 +918,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
                   onClick={() => {
                     setSortOrder(option.value);
                     setPage(1);
+                    setSelectedTemplateIds([]);
                     setOpenTemplateFilter(null);
                   }}
                 >
@@ -926,10 +964,42 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
         />
       ) : (
         <>
+          {!!selectedTemplateIds.length && (
+            <div className="template-bulk-bar">
+              <span>
+                {selectedTemplateIds.length} template
+                {selectedTemplateIds.length > 1 ? "s" : ""} selected
+              </span>
+              <div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setSelectedTemplateIds([])}
+                >
+                  Clear selection
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={() => setBulkDeleteOpen(true)}
+                >
+                  <Trash2 size={15} /> Delete selected
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th className="template-select-column">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible templates"
+                      checked={allVisibleSelected}
+                      onChange={toggleVisibleTemplates}
+                    />
+                  </th>
                   <th>Template</th>
                   <th>Used</th>
                   <th>Last used</th>
@@ -940,6 +1010,14 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
               <tbody>
                 {data.data.map((template) => (
                   <tr key={template.id}>
+                    <td className="template-select-column">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${template.name}`}
+                        checked={selectedTemplateIds.includes(template.id)}
+                        onChange={() => toggleTemplateSelection(template.id)}
+                      />
+                    </td>
                     <td>
                       <div className="template-table-title">
                         <strong>{template.name}</strong>
@@ -995,7 +1073,10 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
                 type="button"
                 variant="secondary"
                 disabled={page <= 1}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
+                onClick={() => {
+                  setSelectedTemplateIds([]);
+                  setPage((value) => Math.max(1, value - 1));
+                }}
               >
                 Previous
               </Button>
@@ -1006,9 +1087,10 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
                 type="button"
                 variant="secondary"
                 disabled={page >= data.meta.totalPages}
-                onClick={() =>
-                  setPage((value) => Math.min(data.meta.totalPages, value + 1))
-                }
+                onClick={() => {
+                  setSelectedTemplateIds([]);
+                  setPage((value) => Math.min(data.meta.totalPages, value + 1));
+                }}
               >
                 Next
               </Button>
@@ -1051,6 +1133,21 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
         loading={remove.isPending}
         onClose={() => setDeleteTemplate(undefined)}
         onConfirm={() => remove.mutate()}
+      />
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        title="Delete selected templates?"
+        description={`Are you sure you want to delete ${
+          selectedTemplateIds.length
+        } selected template${
+          selectedTemplateIds.length === 1 ? "" : "s"
+        }? This action cannot be undone.`}
+        confirmText="Delete templates"
+        loading={bulkDelete.isPending}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={() =>
+          selectedTemplateIds.length && bulkDelete.mutate()
+        }
       />
     </>
   );

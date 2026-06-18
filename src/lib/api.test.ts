@@ -133,6 +133,7 @@ describe("api authentication", () => {
       .mockResolvedValueOnce(response(200, template))
       .mockResolvedValueOnce(response(200, { ...template, name: "Bug" }))
       .mockResolvedValueOnce(response(200, { ...template, id: "template-copy" }))
+      .mockResolvedValueOnce(response(200, { success: true }))
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
     await api.taskTemplates("workspace-1", {
@@ -153,6 +154,10 @@ describe("api authentication", () => {
     });
     await api.updateTaskTemplate("workspace-1", "template-1", { name: "Bug" });
     await api.duplicateTaskTemplate("workspace-1", "template-1");
+    await api.bulkDeleteTaskTemplates("workspace-1", [
+      "template-1",
+      "template-2",
+    ]);
     await api.removeTaskTemplate("workspace-1", "template-1");
     expect(fetch).toHaveBeenNthCalledWith(
       1,
@@ -191,6 +196,14 @@ describe("api authentication", () => {
     );
     expect(fetch).toHaveBeenNthCalledWith(
       6,
+      "http://localhost:3000/workspaces/workspace-1/task-templates/bulk-delete",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ ids: ["template-1", "template-2"] }),
+      }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      7,
       "http://localhost:3000/workspaces/workspace-1/task-templates/template-1",
       expect.objectContaining({ method: "DELETE" }),
     );
