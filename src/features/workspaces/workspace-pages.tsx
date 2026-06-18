@@ -311,7 +311,7 @@ function ProjectsTab({ workspaceId }: { workspaceId: string }) {
                     })}
                   </td>
                   <td>
-                    <div className="row-actions">
+                    <div className="row-actions project-row-actions">
                       <Button
                         variant="ghost"
                         aria-label={`Edit ${project.name}`}

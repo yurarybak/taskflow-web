@@ -137,10 +137,12 @@
   font-size: 14px;
 }
 
+.project-row-actions,
 .template-row-actions {
   gap: 2px;
 }
 
+.project-row-actions .button,
 .template-row-actions .button {
   width: 30px;
   height: 30px;
