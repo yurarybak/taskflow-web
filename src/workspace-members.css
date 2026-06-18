@@ -75,6 +75,49 @@
   margin-left: auto;
 }
 
+.template-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: -4px 0 16px;
+}
+
+.template-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 240px;
+  max-width: 380px;
+}
+
+.template-search svg {
+  position: absolute;
+  left: 10px;
+  color: #8c96a6;
+}
+
+.template-search .input {
+  padding-left: 32px;
+}
+
+.template-filter-control {
+  display: grid;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.template-filter-control > span {
+  color: #687386;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.template-filter-control .select {
+  min-width: 150px;
+}
+
 .template-table-title strong {
   display: block;
 }

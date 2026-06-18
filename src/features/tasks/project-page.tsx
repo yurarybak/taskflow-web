@@ -380,7 +380,7 @@ function TaskForm({
     queryFn: () => api.milestones(projectId),
   });
   const { data: templatesPage } = useQuery({
-    queryKey: keys.taskTemplates(workspaceId || "", 1),
+    queryKey: keys.taskTemplates(workspaceId || "", { page: 1, limit: 100 }),
     queryFn: () => api.taskTemplates(workspaceId || "", { page: 1, limit: 100 }),
     enabled: isCreating && !!workspaceId,
   });

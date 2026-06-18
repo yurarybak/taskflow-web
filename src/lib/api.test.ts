@@ -134,7 +134,13 @@ describe("api authentication", () => {
       .mockResolvedValueOnce(response(200, { ...template, name: "Bug" }))
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
-    await api.taskTemplates("workspace-1", { page: 2, limit: 10 });
+    await api.taskTemplates("workspace-1", {
+      page: 2,
+      limit: 10,
+      search: "bug",
+      sortBy: "usageCount",
+      sortOrder: "desc",
+    });
     await api.taskTemplate("workspace-1", "template-1");
     await api.createTaskTemplate("workspace-1", {
       name: "Bug report",
@@ -148,7 +154,7 @@ describe("api authentication", () => {
     await api.removeTaskTemplate("workspace-1", "template-1");
     expect(fetch).toHaveBeenNthCalledWith(
       1,
-      "http://localhost:3000/workspaces/workspace-1/task-templates?page=2&limit=10",
+      "http://localhost:3000/workspaces/workspace-1/task-templates?page=2&limit=10&search=bug&sortBy=usageCount&sortOrder=desc",
       expect.any(Object),
     );
     expect(fetch).toHaveBeenNthCalledWith(

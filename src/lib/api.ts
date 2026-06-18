@@ -16,6 +16,7 @@ import type {
   TaskExport,
   TaskExportFilters,
   TaskFilters,
+  TaskTemplateFilters,
   TaskReminder,
   TaskTemplate,
   TaskWatcher,
@@ -255,11 +256,11 @@ export const api = {
     }),
   taskTemplates: async (
     workspaceId: string,
-    filters: { page?: number; limit?: number } = {},
+    filters: TaskTemplateFilters = {},
   ) =>
     normalizePage(
       await request<Page<TaskTemplate> | TaskTemplate[]>(
-        `/workspaces/${workspaceId}/task-templates${query(filters)}`,
+        `/workspaces/${workspaceId}/task-templates${query({ ...filters })}`,
       ),
     ),
   taskTemplate: (workspaceId: string, id: string) =>

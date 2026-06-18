@@ -2,8 +2,8 @@ export const keys = {
   workspaces: ["workspaces"] as const,
   workspace: (id: string) => ["workspace", id] as const,
   members: (id: string) => ["members", id] as const,
-  taskTemplates: (workspaceId: string, page = 1) =>
-    ["task-templates", workspaceId, page] as const,
+  taskTemplates: (workspaceId: string, filters: object = {}) =>
+    ["task-templates", workspaceId, filters] as const,
   taskTemplate: (workspaceId: string, id: string) =>
     ["task-template", workspaceId, id] as const,
   projects: (id: string, search = "") => ["projects", id, search] as const,

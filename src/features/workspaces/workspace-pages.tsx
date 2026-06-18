@@ -35,14 +35,30 @@ import type {
   Member,
   Project,
   Role,
+  SortOrder,
   TaskPriority,
   TaskTemplate,
+  TaskTemplateFilters,
+  TaskTemplateSortBy,
   TaskType,
   Workspace,
 } from "../../lib/types";
 
 const taskTemplateTypes: TaskType[] = ["TASK", "BUG", "FEATURE", "IMPROVEMENT"];
 const taskTemplatePriorities: TaskPriority[] = ["LOW", "MEDIUM", "HIGH"];
+const taskTemplateSortOptions: {
+  value: TaskTemplateSortBy;
+  label: string;
+}[] = [
+  { value: "createdAt", label: "Created" },
+  { value: "name", label: "Name" },
+  { value: "usageCount", label: "Usage" },
+  { value: "lastUsedAt", label: "Last used" },
+];
+const sortOrderOptions: { value: SortOrder; label: string }[] = [
+  { value: "desc", label: "Descending" },
+  { value: "asc", label: "Ascending" },
+];
 const humanizeConstant = (value: string) =>
   value
     .toLowerCase()
@@ -701,17 +717,37 @@ function TaskTemplateForm({
 function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
   const invalidate = useInvalidate();
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<TaskTemplateSortBy>("createdAt");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [create, setCreate] = useState(false);
   const [edit, setEdit] = useState<TaskTemplate>();
   const [deleteTemplate, setDeleteTemplate] = useState<TaskTemplate>();
+  const effectiveSearch =
+    search.trim().length >= 2 ? search.trim() : undefined;
+  const templateFilters: TaskTemplateFilters = {
+    page,
+    limit: 10,
+    ...(effectiveSearch ? { search: effectiveSearch } : {}),
+    sortBy,
+    sortOrder,
+  };
+  const hasActiveTemplateFilters =
+    !!search.trim() || sortBy !== "createdAt" || sortOrder !== "desc";
   const { data: labels } = useQuery({
     queryKey: keys.labels(workspaceId),
     queryFn: () => api.labels(workspaceId),
   });
   const { data, isLoading, error } = useQuery({
-    queryKey: keys.taskTemplates(workspaceId, page),
-    queryFn: () => api.taskTemplates(workspaceId, { page, limit: 10 }),
+    queryKey: keys.taskTemplates(workspaceId, templateFilters),
+    queryFn: () => api.taskTemplates(workspaceId, templateFilters),
   });
+  const resetTemplateFilters = () => {
+    setSearch("");
+    setSortBy("createdAt");
+    setSortOrder("desc");
+    setPage(1);
+  };
   const remove = useMutation({
     mutationFn: () => {
       if (!deleteTemplate) throw new Error("No template selected");
@@ -737,18 +773,82 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
           <Plus size={15} /> New template
         </Button>
       </div>
+      <div className="template-filters">
+        <label className="template-search">
+          <Search size={15} />
+          <Input
+            value={search}
+            placeholder="Search templates..."
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+          />
+        </label>
+        <label className="template-filter-control">
+          <span>Sort by</span>
+          <Select
+            value={sortBy}
+            onChange={(event) => {
+              setSortBy(event.target.value as TaskTemplateSortBy);
+              setPage(1);
+            }}
+          >
+            {taskTemplateSortOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="template-filter-control">
+          <span>Order</span>
+          <Select
+            value={sortOrder}
+            onChange={(event) => {
+              setSortOrder(event.target.value as SortOrder);
+              setPage(1);
+            }}
+          >
+            {sortOrderOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </label>
+        {hasActiveTemplateFilters && (
+          <Button type="button" variant="secondary" onClick={resetTemplateFilters}>
+            Clear
+          </Button>
+        )}
+      </div>
       {isLoading ? (
         <Skeleton />
       ) : error ? (
         <Empty title="Could not load templates" detail={error.message} />
       ) : !data?.data.length ? (
         <Empty
-          title="No task templates yet"
-          detail="Create templates for common tasks like bug reports, stories or recurring work."
+          title={
+            hasActiveTemplateFilters
+              ? "No templates found"
+              : "No task templates yet"
+          }
+          detail={
+            hasActiveTemplateFilters
+              ? "Try another search or reset sorting."
+              : "Create templates for common tasks like bug reports, stories or recurring work."
+          }
           action={
-            <Button onClick={() => setCreate(true)}>
-              <Plus size={15} /> New template
-            </Button>
+            hasActiveTemplateFilters ? (
+              <Button variant="secondary" onClick={resetTemplateFilters}>
+                Clear filters
+              </Button>
+            ) : (
+              <Button onClick={() => setCreate(true)}>
+                <Plus size={15} /> New template
+              </Button>
+            )
           }
         />
       ) : (

@@ -2,6 +2,12 @@ export type Role = "OWNER" | "ADMIN" | "MEMBER";
 export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH";
 export type TaskType = "TASK" | "BUG" | "FEATURE" | "IMPROVEMENT";
+export type SortOrder = "asc" | "desc";
+export type TaskTemplateSortBy =
+  | "createdAt"
+  | "name"
+  | "usageCount"
+  | "lastUsedAt";
 
 export interface User {
   id: string;
@@ -106,6 +112,13 @@ export interface TaskTemplate {
   lastUsedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+export interface TaskTemplateFilters {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortBy?: TaskTemplateSortBy;
+  sortOrder?: SortOrder;
 }
 export interface Comment {
   id: string;
