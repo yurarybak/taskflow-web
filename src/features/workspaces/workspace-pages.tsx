@@ -720,6 +720,10 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<TaskTemplateSortBy>("createdAt");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [openTemplateFilter, setOpenTemplateFilter] = useState<
+    "sortBy" | "sortOrder" | null
+  >(null);
+  const templateFiltersRef = useRef<HTMLDivElement>(null);
   const [create, setCreate] = useState(false);
   const [edit, setEdit] = useState<TaskTemplate>();
   const [deleteTemplate, setDeleteTemplate] = useState<TaskTemplate>();
@@ -747,7 +751,21 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     setSortBy("createdAt");
     setSortOrder("desc");
     setPage(1);
+    setOpenTemplateFilter(null);
   };
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (
+        templateFiltersRef.current &&
+        !templateFiltersRef.current.contains(event.target as Node)
+      ) {
+        setOpenTemplateFilter(null);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick, true);
+    return () =>
+      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
+  }, []);
   const remove = useMutation({
     mutationFn: () => {
       if (!deleteTemplate) throw new Error("No template selected");
@@ -773,7 +791,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
           <Plus size={15} /> New template
         </Button>
       </div>
-      <div className="template-filters">
+      <div className="template-filters" ref={templateFiltersRef}>
         <label className="template-search">
           <Search size={15} />
           <Input
@@ -785,38 +803,83 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
             }}
           />
         </label>
-        <label className="template-filter-control">
-          <span>Sort by</span>
-          <Select
-            value={sortBy}
-            onChange={(event) => {
-              setSortBy(event.target.value as TaskTemplateSortBy);
-              setPage(1);
-            }}
+        <div className="task-filter-popover template-filter-popover">
+          <button
+            className={
+              sortBy !== "createdAt"
+                ? "task-filter-button active"
+                : "task-filter-button"
+            }
+            type="button"
+            onClick={() =>
+              setOpenTemplateFilter(
+                openTemplateFilter === "sortBy" ? null : "sortBy",
+              )
+            }
           >
-            {taskTemplateSortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="template-filter-control">
-          <span>Order</span>
-          <Select
-            value={sortOrder}
-            onChange={(event) => {
-              setSortOrder(event.target.value as SortOrder);
-              setPage(1);
-            }}
+            Sort:{" "}
+            {taskTemplateSortOptions.find((option) => option.value === sortBy)
+              ?.label || "Created"}
+            <ChevronDown size={14} />
+          </button>
+          {openTemplateFilter === "sortBy" && (
+            <div className="task-filter-menu compact template-filter-menu">
+              {taskTemplateSortOptions.map((option) => (
+                <button
+                  className={option.value === sortBy ? "active" : ""}
+                  type="button"
+                  key={option.value}
+                  onClick={() => {
+                    setSortBy(option.value);
+                    setPage(1);
+                    setOpenTemplateFilter(null);
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="task-filter-popover template-filter-popover">
+          <button
+            className={
+              sortOrder !== "desc"
+                ? "task-filter-button active"
+                : "task-filter-button"
+            }
+            type="button"
+            onClick={() =>
+              setOpenTemplateFilter(
+                openTemplateFilter === "sortOrder" ? null : "sortOrder",
+              )
+            }
           >
-            {sortOrderOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </label>
+            {
+              sortOrderOptions.find((option) => option.value === sortOrder)
+                ?.label
+            }
+            <ChevronDown size={14} />
+          </button>
+          {openTemplateFilter === "sortOrder" && (
+            <div className="task-filter-menu compact template-filter-menu">
+              {sortOrderOptions.map((option) => (
+                <button
+                  className={option.value === sortOrder ? "active" : ""}
+                  type="button"
+                  key={option.value}
+                  onClick={() => {
+                    setSortOrder(option.value);
+                    setPage(1);
+                    setOpenTemplateFilter(null);
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {hasActiveTemplateFilters && (
           <Button type="button" variant="secondary" onClick={resetTemplateFilters}>
             Clear

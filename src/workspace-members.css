@@ -99,23 +99,33 @@
 }
 
 .template-search .input {
+  height: 38px;
   padding-left: 32px;
 }
 
-.template-filter-control {
-  display: grid;
-  gap: 6px;
+.template-filter-popover .task-filter-button {
+  height: 38px;
   min-width: 150px;
 }
 
-.template-filter-control > span {
-  color: #687386;
-  font-size: 12px;
-  font-weight: 700;
+.template-filter-menu button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: white;
+  padding: 8px;
+  color: #25324b;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
 }
 
-.template-filter-control .select {
-  min-width: 150px;
+.template-filter-menu button:hover,
+.template-filter-menu button.active {
+  background: #f8fafc;
+  color: #1d4ed8;
 }
 
 .template-table-title strong {
