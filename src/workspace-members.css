@@ -137,6 +137,16 @@
   font-size: 14px;
 }
 
+.template-row-actions {
+  gap: 2px;
+}
+
+.template-row-actions .button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
 .template-label-picker {
   display: grid;
   gap: 8px;

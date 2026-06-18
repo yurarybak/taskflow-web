@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
+  Copy,
   Edit3,
   FileText,
   FolderKanban,
@@ -778,6 +779,15 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     },
     onError: (e) => toast.error(e.message),
   });
+  const duplicate = useMutation({
+    mutationFn: (template: TaskTemplate) =>
+      api.duplicateTaskTemplate(workspaceId, template.id),
+    onSuccess: () => {
+      invalidate("task-templates", workspaceId);
+      toast.success("Template duplicated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
   return (
     <>
       <div className="toolbar template-toolbar">
@@ -949,13 +959,21 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
                       })}
                     </td>
                     <td>
-                      <div className="row-actions">
+                      <div className="row-actions template-row-actions">
                         <Button
                           variant="ghost"
                           aria-label={`Edit ${template.name}`}
                           onClick={() => setEdit(template)}
                         >
                           <Edit3 size={15} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          aria-label={`Duplicate ${template.name}`}
+                          disabled={duplicate.isPending}
+                          onClick={() => duplicate.mutate(template)}
+                        >
+                          <Copy size={15} />
                         </Button>
                         <Button
                           variant="ghost"

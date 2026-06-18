@@ -296,6 +296,11 @@ export const api = {
       method: "PATCH",
       ...json(body),
     }),
+  duplicateTaskTemplate: (workspaceId: string, id: string) =>
+    request<TaskTemplate>(
+      `/workspaces/${workspaceId}/task-templates/${id}/duplicate`,
+      { method: "POST" },
+    ),
   removeTaskTemplate: (workspaceId: string, id: string) =>
     request<{ success: boolean }>(
       `/workspaces/${workspaceId}/task-templates/${id}`,
