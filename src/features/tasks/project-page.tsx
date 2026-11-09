@@ -1,4 +1,5 @@
 import {
+  type InfiniteData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -52,15 +53,22 @@ import {
   toggleValue,
   types,
 } from "./task-filters";
+import { errorMessage } from "../../lib/query-client";
 import { keys } from "../../lib/query-keys";
 import { initials, personName } from "../../lib/utils";
 import type {
+  Page,
   SavedTaskFilter,
   Task,
   TaskFilters,
   TaskStatus,
 } from "../../lib/types";
-import { findAssignee, humanizeConstant, statusLabel } from "./task-utils";
+import {
+  findAssignee,
+  humanizeConstant,
+  patchTaskInPages,
+  statusLabel,
+} from "./task-utils";
 import { PriorityIcon, TypeIcon } from "./task-fields";
 import { MilestonesTab } from "./milestones";
 import { TaskForm } from "./task-form";
@@ -290,11 +298,40 @@ function ProjectBoard() {
     client.setQueryData(keys.task(projectId, task.id), task);
     setSelectedTaskId(task.id);
   };
+  // Drag-and-drop moves the card at once (optimistic update) and rolls back
+  // if the API rejects the change.
+  const statusMutationKey = ["update-task-status", projectId];
   const updateStatus = useMutation({
+    mutationKey: statusMutationKey,
     mutationFn: ({ task, status }: { task: Task; status: TaskStatus }) =>
       api.updateTask(projectId, task.id, { status }),
-    onSuccess: () =>
-      client.invalidateQueries({ queryKey: keys.tasksAll(projectId) }),
+    onMutate: async ({ task, status }) => {
+      const listKey = keys.tasksAll(projectId);
+      await client.cancelQueries({ queryKey: listKey });
+      const snapshots = client.getQueriesData<InfiniteData<Page<Task>>>({
+        queryKey: listKey,
+      });
+      client.setQueriesData<InfiniteData<Page<Task>>>(
+        { queryKey: listKey },
+        (current) => patchTaskInPages(current, task.id, { status }),
+      );
+      return { snapshots };
+    },
+    onError: (error, _variables, context) => {
+      context?.snapshots.forEach(([queryKey, data]) =>
+        client.setQueryData(queryKey, data),
+      );
+      toast.error(errorMessage(error));
+    },
+    onSettled: (_data, _error, { task }) => {
+      // With several drags in flight, refetch only after the last one so an
+      // early response does not overwrite a later optimistic move.
+      if (client.isMutating({ mutationKey: statusMutationKey }) > 1) return;
+      void client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
+      void client.invalidateQueries({
+        queryKey: keys.task(projectId, task.id),
+      });
+    },
   });
   const handleDrop = (event: DragEvent<HTMLElement>, status: TaskStatus) => {
     event.preventDefault();

@@ -1,5 +1,12 @@
+import type { InfiniteData } from "@tanstack/react-query";
 import { format } from "date-fns";
-import type { Member, Milestone, Task, TaskStatus } from "../../lib/types";
+import type {
+  Member,
+  Milestone,
+  Page,
+  Task,
+  TaskStatus,
+} from "../../lib/types";
 
 export const statusLabel = (status: TaskStatus) =>
   ({ TODO: "To do", IN_PROGRESS: "In progress", DONE: "Done" })[status];
@@ -103,3 +110,18 @@ export const findUserById = (
   )?.user;
 export const findAssignee = (members: Member[] | undefined, task: Task) =>
   findUserById(members, task.assigneeId);
+/** Applies `patch` to one task in a paged (useInfiniteQuery) task list cache. */
+export const patchTaskInPages = (
+  data: InfiniteData<Page<Task>> | undefined,
+  taskId: string,
+  patch: Partial<Task>,
+): InfiniteData<Page<Task>> | undefined =>
+  data && {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      data: page.data.map((task) =>
+        task.id === taskId ? { ...task, ...patch } : task,
+      ),
+    })),
+  };

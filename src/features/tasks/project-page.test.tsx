@@ -259,3 +259,61 @@ describe("TaskForm", () => {
     expect(sentBody).not.toHaveProperty("description");
   });
 });
+
+describe("Board drag and drop", () => {
+  beforeEach(() => {
+    localStorage.setItem("taskflow.refreshToken", "stored-refresh");
+  });
+
+  const column = (name: string) =>
+    screen
+      .getByText(name, { selector: ".board-column header strong" })
+      .closest("section") as HTMLElement;
+  const dropOn = (name: string, taskId: string) => {
+    const target = column(name);
+    fireEvent.dragOver(target, { dataTransfer: { dropEffect: "move" } });
+    fireEvent.drop(target, { dataTransfer: { getData: () => taskId } });
+  };
+
+  it("moves the card at once, before the API responds", async () => {
+    let status = "TODO";
+    let releaseResponse: () => void = () => undefined;
+    server.use(
+      http.get(apiUrl("/projects/:projectId/tasks"), () =>
+        HttpResponse.json(makePage([makeTask({ status: status as "TODO" })])),
+      ),
+      http.patch(
+        apiUrl("/projects/:projectId/tasks/:taskId"),
+        async ({ request }) => {
+          await new Promise<void>((resolve) => (releaseResponse = resolve));
+          status = ((await request.json()) as { status: string }).status;
+          return HttpResponse.json(makeTask({ status: status as "DONE" }));
+        },
+      ),
+    );
+    renderApp(projectPath);
+    await within(await waitFor(() => column("To do"))).findByText("Write docs");
+    dropOn("Done", "task-1");
+    expect(
+      await within(column("Done")).findByText("Write docs"),
+    ).toBeInTheDocument();
+    expect(within(column("To do")).queryByText("Write docs")).toBeNull();
+    releaseResponse();
+    await waitFor(() => expect(status).toBe("DONE"));
+    expect(within(column("Done")).getByText("Write docs")).toBeInTheDocument();
+  });
+
+  it("puts the card back and reports the error when the API rejects the move", async () => {
+    server.use(
+      http.patch(apiUrl("/projects/:projectId/tasks/:taskId"), () =>
+        HttpResponse.json({ message: "Status locked" }, { status: 409 }),
+      ),
+    );
+    renderApp(projectPath);
+    await within(await waitFor(() => column("To do"))).findByText("Write docs");
+    dropOn("Done", "task-1");
+    expect(await screen.findByText("Status locked")).toBeInTheDocument();
+    expect(within(column("To do")).getByText("Write docs")).toBeInTheDocument();
+    expect(within(column("Done")).queryByText("Write docs")).toBeNull();
+  });
+});

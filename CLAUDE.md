@@ -74,7 +74,7 @@ A feature is a folder of focused modules. One component, or a few tightly relate
 
 Typical mutation pattern: `useMutation` → `onSuccess`: `void client.invalidateQueries({ queryKey: keys.… })` + `toast.success` (sonner). Errors are toasted globally (see `query-client.ts`).
 
-The project task list is a `useInfiniteQuery` with pages of 100 (`TASKS_PAGE_SIZE`, the API maximum) and a "Load more tasks" button. Its search is debounced. `ProjectPage` keeps only `selectedTaskId`, and `TaskModal` gets the task from `useQuery(keys.task(...))`, with the list item as placeholder. So invalidating `keys.task` refreshes the open modal, and `onUpdated` writes to that cache entry. In view mode `TaskModal` renders `task` directly; the title/description drafts are copied only when editing starts.
+The project task list is a `useInfiniteQuery` with pages of 100 (`TASKS_PAGE_SIZE`, the API maximum) and a "Load more tasks" button. Drag-and-drop status changes are optimistic. `onMutate` patches every cached list variant with `patchTaskInPages`, `onError` restores the snapshots, and the list refetches only after the last in-flight status change (`isMutating` on the `update-task-status` mutation key). Its search is debounced. `ProjectPage` keeps only `selectedTaskId`, and `TaskModal` gets the task from `useQuery(keys.task(...))`, with the list item as placeholder. So invalidating `keys.task` refreshes the open modal, and `onUpdated` writes to that cache entry. In view mode `TaskModal` renders `task` directly; the title/description drafts are copied only when editing starts.
 
 ### UI and styling
 
