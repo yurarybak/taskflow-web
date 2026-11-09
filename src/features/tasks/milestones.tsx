@@ -50,7 +50,7 @@ function MilestoneForm({
         : api.createMilestone(projectId, body);
     },
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: keys.milestones(projectId) });
+      void client.invalidateQueries({ queryKey: keys.milestones(projectId) });
       toast.success(initial ? "Milestone updated" : "Milestone created");
       onClose();
     },
@@ -135,7 +135,7 @@ export function MilestonesTab({ projectId }: { projectId: string }) {
     mutationFn: (id: string) => api.removeMilestone(projectId, id),
     onSuccess: () => {
       setDeleteId(null);
-      refresh();
+      void refresh();
       toast.success("Milestone deleted");
     },
   });
@@ -145,7 +145,7 @@ export function MilestonesTab({ projectId }: { projectId: string }) {
         ? api.reopenMilestone(projectId, milestone.id)
         : api.completeMilestone(projectId, milestone.id),
     onSuccess: (updated) => {
-      refresh();
+      void refresh();
       toast.success(
         updated.completedAt ? "Milestone completed" : "Milestone reopened",
       );

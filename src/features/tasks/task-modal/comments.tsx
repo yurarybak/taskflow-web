@@ -64,8 +64,8 @@ export function Comments({
       api.createComment(taskId, serializeMentionText(content, members)),
     onSuccess: () => {
       setContent("");
-      client.invalidateQueries({ queryKey: keys.comments(taskId) });
-      client.invalidateQueries({ queryKey: keys.activity(taskId) });
+      void client.invalidateQueries({ queryKey: keys.comments(taskId) });
+      void client.invalidateQueries({ queryKey: keys.activity(taskId) });
     },
   });
   const refresh = () =>
@@ -80,7 +80,7 @@ export function Comments({
     onSuccess: () => {
       setEditingId(null);
       setEditingContent("");
-      refresh();
+      void refresh();
       toast.success("Comment updated");
     },
   });
@@ -88,8 +88,8 @@ export function Comments({
     mutationFn: (commentId: string) => api.removeComment(taskId, commentId),
     onSuccess: () => {
       setDeleteCommentId(null);
-      refresh();
-      client.invalidateQueries({ queryKey: keys.activity(taskId) });
+      void refresh();
+      void client.invalidateQueries({ queryKey: keys.activity(taskId) });
       toast.success("Comment deleted");
     },
   });

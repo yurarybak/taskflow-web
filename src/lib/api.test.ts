@@ -995,3 +995,35 @@ describe("api session refresh", () => {
     );
   });
 });
+
+describe("api error messages", () => {
+  beforeEach(() => tokenStorage.clear());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    [
+      { message: ["name is required", "email is invalid"] },
+      "name is required, email is invalid",
+    ],
+    [{ message: "Forbidden" }, "Forbidden"],
+    [{ message: [42] }, "Something went wrong"],
+    [{ error: "no message field" }, "Something went wrong"],
+  ])("reads %j as %s", async (body, expected) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(400, body)));
+    await expect(api.workspaces()).rejects.toMatchObject({
+      status: 400,
+      message: expected,
+    });
+  });
+
+  it("falls back when the error body is not JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("<html>", { status: 502 })),
+    );
+    await expect(api.workspaces()).rejects.toMatchObject({
+      status: 502,
+      message: "Something went wrong",
+    });
+  });
+});

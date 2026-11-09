@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev       # Vite dev server on http://localhost:5173
 npm run build     # tsc -b (type check) + vite build
-npm run lint      # eslint with --max-warnings=0, so any warning fails
+npm run lint      # type-aware eslint + jsx-a11y, --max-warnings=0, so any warning fails
 npm run test      # vitest run (jsdom)
 npm run format    # prettier --write on src/**/*.{ts,tsx}; config in .prettierrc (double quotes, semicolons, trailing commas)
 npm run format:check
@@ -17,6 +17,14 @@ npx vitest run src/lib/api.test.ts -t "bootstrap"  # tests whose name matches
 ```
 
 Before handing off changes, run `npm run build`, `npm run lint`, `npm run test` and `npm run format:check`. Line endings are LF (`.gitattributes`); `src/styles.css` is excluded from prettier because it is minified.
+
+### Lint conventions
+
+ESLint uses `typescript-eslint` `recommendedTypeChecked` (with `projectService`) and `jsx-a11y` recommended. In practice:
+
+- **Promises must be handled.** Fire-and-forget calls get an explicit `void`, e.g. `void client.invalidateQueries(...)` in `onSuccess`, so the mutation does not wait for the refetch. Event handlers must not return promises: write `onClick={() => void fetchNextPage()}`, and with react-hook-form `onSubmit={(event) => void handleSubmit(onValid)(event)}`.
+- **No `any`.** Cast parsed JSON to a known shape (`(await response.json()) as AuthResponse`) and narrow `unknown` before use.
+- **Accessibility.** Clickable non-button elements need `role`, `tabIndex` and a keyboard handler (see the task card). Icon-only buttons need `aria-label`. Inputs without a visible label need `aria-label`. `jsx-a11y/no-autofocus` is off on purpose: use `autoFocus` only in dialogs and inline editors the user just opened.
 
 The app needs a running TaskFlow REST API backend. Its URL comes from `VITE_API_URL` (copy `.env.example` to `.env`; default `http://localhost:3000`). The backend must allow CORS from `http://localhost:5173`.
 
@@ -63,7 +71,7 @@ A feature is a folder of focused modules. One component, or a few tightly relate
 - **`workspaces/workspace-pages.tsx`**: the workspaces list, plus a workspace page with Projects, Members, Labels and Task Templates tabs.
 - **`profile/`** and **`auth/`**: auth forms use react-hook-form with zod (`zodResolver`). Most other forms use local `useState`.
 
-Typical mutation pattern: `useMutation` → `onSuccess`: `client.invalidateQueries({ queryKey: keys.… })` + `toast.success` (sonner). Errors are toasted globally (see `query-client.ts`).
+Typical mutation pattern: `useMutation` → `onSuccess`: `void client.invalidateQueries({ queryKey: keys.… })` + `toast.success` (sonner). Errors are toasted globally (see `query-client.ts`).
 
 The project task list is a `useInfiniteQuery` with pages of 100 (`TASKS_PAGE_SIZE`, the API maximum) and a "Load more tasks" button. Its search is debounced. `ProjectPage` keeps only `selectedTaskId`, and `TaskModal` gets the task from `useQuery(keys.task(...))`, with the list item as placeholder. So invalidating `keys.task` refreshes the open modal, and `onUpdated` writes to that cache entry. In view mode `TaskModal` renders `task` directly; the title/description drafts are copied only when editing starts.
 

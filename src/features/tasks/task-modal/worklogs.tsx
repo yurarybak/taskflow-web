@@ -80,9 +80,13 @@ export function TimeTrackingDialog({
       const nextRemaining = remaining.trim()
         ? (parsedRemaining.minutes ?? undefined)
         : undefined;
-      client.invalidateQueries({ queryKey: keys.worklogs(projectId, task.id) });
-      client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
-      client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
+      void client.invalidateQueries({
+        queryKey: keys.worklogs(projectId, task.id),
+      });
+      void client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
+      void client.invalidateQueries({
+        queryKey: keys.task(projectId, task.id),
+      });
       onSaved(spent, nextRemaining);
       setTimeSpent("");
       setDescription("");
@@ -366,9 +370,11 @@ export function WorklogList({
       getNextPageParam: nextPageParam,
     });
   const refresh = () => {
-    client.invalidateQueries({ queryKey: keys.worklogs(projectId, task.id) });
-    client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
-    client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
+    void client.invalidateQueries({
+      queryKey: keys.worklogs(projectId, task.id),
+    });
+    void client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
+    void client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
   };
   const remove = useMutation({
     mutationFn: () => {

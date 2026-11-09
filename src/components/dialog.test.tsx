@@ -88,3 +88,35 @@ describe("Dialog", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+describe("Dialog backdrop", () => {
+  it("closes on a press on the backdrop but not inside the panel", () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog open title="Edit" onClose={onClose}>
+        <button>Inside</button>
+      </Dialog>,
+    );
+    fireEvent.mouseDown(screen.getByText("Inside"));
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.mouseDown(screen.getByRole("dialog").parentElement!);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes only the inner dialog when its backdrop is pressed", () => {
+    const closeOuter = vi.fn();
+    const closeInner = vi.fn();
+    render(
+      <Dialog open title="Outer" onClose={closeOuter}>
+        <Dialog open title="Inner" onClose={closeInner}>
+          <span>Body</span>
+        </Dialog>
+      </Dialog>,
+    );
+    fireEvent.mouseDown(
+      screen.getByRole("dialog", { name: "Inner" }).parentElement!,
+    );
+    expect(closeInner).toHaveBeenCalledTimes(1);
+    expect(closeOuter).not.toHaveBeenCalled();
+  });
+});

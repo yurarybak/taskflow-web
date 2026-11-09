@@ -196,7 +196,7 @@ export type TaskExportStatus =
   | "CANCELLED";
 export interface TaskExport {
   id: string;
-  status: TaskExportStatus | string;
+  status: TaskExportStatus;
   fileName?: string | null;
   storageName?: string | null;
   error?: string | null;

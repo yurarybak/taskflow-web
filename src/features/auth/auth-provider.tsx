@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
   useEffect(() => {
     let active = true;
-    (async () => {
+    void (async () => {
       try {
         // StrictMode runs this effect twice; api.bootstrap shares one refresh
         // between the runs, and the refresh response already carries the user.
@@ -81,6 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async (all = false) => {
     try {
       await (all ? api.logoutAll() : api.logout());
+    } catch {
+      // The local session ends either way; a failed server-side revoke
+      // must not leave the user signed in or surface as an unhandled error.
     } finally {
       endSession();
     }

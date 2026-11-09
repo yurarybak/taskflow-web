@@ -223,7 +223,11 @@ function DialogPanel({
       <div
         className="dialog-backdrop"
         role="presentation"
-        onMouseDown={onClose}
+        // Only a press on the backdrop itself closes the dialog, not one that
+        // started inside the panel or inside a nested dialog's backdrop.
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
       >
         <section
           ref={panelRef}
@@ -232,7 +236,6 @@ function DialogPanel({
           aria-modal="true"
           aria-labelledby={titleId}
           tabIndex={-1}
-          onMouseDown={(event) => event.stopPropagation()}
         >
           <header>
             <h2 id={titleId}>{title}</h2>

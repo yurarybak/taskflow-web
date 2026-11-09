@@ -56,8 +56,8 @@ function NotificationsCenter() {
       getNextPageParam: nextPageParam,
     });
   const refresh = () => {
-    client.invalidateQueries({ queryKey: keys.notifications(unreadOnly) });
-    client.invalidateQueries({ queryKey: keys.unreadNotifications });
+    void client.invalidateQueries({ queryKey: keys.notifications(unreadOnly) });
+    void client.invalidateQueries({ queryKey: keys.unreadNotifications });
   };
   const markRead = useMutation({
     mutationFn: (id: string) => api.markNotificationRead(id),
@@ -86,12 +86,12 @@ function NotificationsCenter() {
     const workspaceId = notificationString(notification.data, "workspaceId");
     const projectId = notificationString(notification.data, "projectId");
     if (workspaceId && projectId) {
-      navigate(`/workspaces/${workspaceId}/projects/${projectId}`);
+      void navigate(`/workspaces/${workspaceId}/projects/${projectId}`);
       setOpen(false);
       return;
     }
     if (workspaceId) {
-      navigate(`/workspaces/${workspaceId}`);
+      void navigate(`/workspaces/${workspaceId}`);
       setOpen(false);
     }
   };
@@ -243,7 +243,7 @@ export function AppShell() {
             </span>
             <ChevronDown size={14} />
           </Link>
-          <Button variant="ghost" onClick={() => logout()}>
+          <Button variant="ghost" onClick={() => void logout()}>
             <LogOut size={15} /> Sign out
           </Button>
         </footer>

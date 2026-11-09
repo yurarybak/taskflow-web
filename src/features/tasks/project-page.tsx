@@ -214,7 +214,7 @@ function ProjectBoard() {
         filters: taskFiltersRecord(currentSavedFilters),
       }),
     onSuccess: (savedFilter) => {
-      invalidateSavedFilters();
+      void invalidateSavedFilters();
       setFilters(filters, savedFilter.id);
       localStorage.setItem(savedFilterStorageKey(projectId), savedFilter.id);
       setSaveFilterOpen(false);
@@ -233,7 +233,7 @@ function ProjectBoard() {
       });
     },
     onSuccess: () => {
-      invalidateSavedFilters();
+      void invalidateSavedFilters();
       setEditFilter(undefined);
       setEditFilterName("");
       setEditFilterUsesCurrent(false);
@@ -246,7 +246,7 @@ function ProjectBoard() {
       return api.removeSavedFilter(projectId, deleteFilter.id);
     },
     onSuccess: () => {
-      invalidateSavedFilters();
+      void invalidateSavedFilters();
       if (deleteFilter?.id === activeSavedFilterId) {
         setFilters(filters, null);
         localStorage.removeItem(savedFilterStorageKey(projectId));
@@ -310,7 +310,7 @@ function ProjectBoard() {
   const taskRow = (task: Task, draggable = false) => {
     const assignee = findAssignee(members, task);
     return (
-      <article
+      <div
         className={[
           "task-row",
           draggedTaskId === task.id ? "dragging" : "",
@@ -385,7 +385,7 @@ function ProjectBoard() {
             </span>
           )}
         </div>
-      </article>
+      </div>
     );
   };
   return (
@@ -853,7 +853,7 @@ function ProjectBoard() {
                 type="button"
                 variant="secondary"
                 loading={isFetchingNextPage}
-                onClick={() => fetchNextPage()}
+                onClick={() => void fetchNextPage()}
               >
                 Load more tasks
               </Button>

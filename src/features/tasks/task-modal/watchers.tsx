@@ -52,7 +52,7 @@ export function WatchersPopover({
     mutationFn: (userId: string) => api.addWatcher(taskId, userId),
     onSuccess: () => {
       setAdding(false);
-      refresh();
+      void refresh();
     },
   });
   const removeWatcher = useMutation({

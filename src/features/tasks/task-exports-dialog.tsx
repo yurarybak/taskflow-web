@@ -124,28 +124,28 @@ export function TaskExportsDialog({
       api.createTaskExport(projectId, cleanTaskExportFilters(exportFilters)),
     onSuccess: () => {
       setPage(1);
-      invalidate();
+      void invalidate();
       toast.success("Task export started");
     },
   });
   const removeExport = useMutation({
     mutationFn: (id: string) => api.removeTaskExport(projectId, id),
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       toast.success("Task export deleted");
     },
   });
   const cancelExport = useMutation({
     mutationFn: (id: string) => api.cancelTaskExport(projectId, id),
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       toast.success("Task export cancelled");
     },
   });
   const retryExport = useMutation({
     mutationFn: (id: string) => api.retryTaskExport(projectId, id),
     onSuccess: () => {
-      invalidate();
+      void invalidate();
       toast.success("Task export restarted");
     },
   });

@@ -57,14 +57,16 @@ export function LoginPage() {
       subtitle="Sign in to continue managing your team's work."
     >
       <form
-        onSubmit={handleSubmit(async (values) => {
-          try {
-            setError("");
-            await login(values);
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "Could not sign in");
-          }
-        })}
+        onSubmit={(event) =>
+          void handleSubmit(async (values) => {
+            try {
+              setError("");
+              await login(values);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : "Could not sign in");
+            }
+          })(event)
+        }
       >
         <Field label="Email" error={errors.email?.message}>
           <Input type="email" autoComplete="email" {...register("email")} />
@@ -105,16 +107,18 @@ export function RegisterPage() {
       subtitle="Start organizing projects and tasks in one focused workspace."
     >
       <form
-        onSubmit={handleSubmit(async (values) => {
-          try {
-            setError("");
-            await signup(values);
-          } catch (e) {
-            setError(
-              e instanceof Error ? e.message : "Could not create account",
-            );
-          }
-        })}
+        onSubmit={(event) =>
+          void handleSubmit(async (values) => {
+            try {
+              setError("");
+              await signup(values);
+            } catch (e) {
+              setError(
+                e instanceof Error ? e.message : "Could not create account",
+              );
+            }
+          })(event)
+        }
       >
         <div className="form-grid">
           <Field label="First name">
@@ -161,10 +165,12 @@ export function ForgotPage() {
         </div>
       ) : (
         <form
-          onSubmit={handleSubmit(async ({ email }) => {
-            await api.forgot(email);
-            setSent(true);
-          })}
+          onSubmit={(event) =>
+            void handleSubmit(async ({ email }) => {
+              await api.forgot(email);
+              setSent(true);
+            })(event)
+          }
         >
           <Field label="Email">
             <Input type="email" required {...register("email")} />
@@ -199,10 +205,15 @@ export function ResetPage() {
         </div>
       ) : (
         <form
-          onSubmit={handleSubmit(async ({ newPassword }) => {
-            await api.reset({ token: params.get("token") || "", newPassword });
-            setDone(true);
-          })}
+          onSubmit={(event) =>
+            void handleSubmit(async ({ newPassword }) => {
+              await api.reset({
+                token: params.get("token") || "",
+                newPassword,
+              });
+              setDone(true);
+            })(event)
+          }
         >
           <Field label="New password">
             <Input

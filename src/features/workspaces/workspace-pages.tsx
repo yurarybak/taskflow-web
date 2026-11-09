@@ -94,7 +94,7 @@ function WorkspaceForm({
         ? api.updateWorkspace(initial.id, { name, description })
         : api.createWorkspace({ name, description }),
     onSuccess: () => {
-      invalidate(keys.workspaces);
+      void invalidate(keys.workspaces);
       toast.success(initial ? "Workspace updated" : "Workspace created");
       onClose();
     },
@@ -212,7 +212,7 @@ function ProjectForm({
         ? api.updateProject(workspaceId, initial.id, { name, description })
         : api.createProject(workspaceId, { name, description }),
     onSuccess: () => {
-      invalidate(keys.projectsAll(workspaceId));
+      void invalidate(keys.projectsAll(workspaceId));
       toast.success(initial ? "Project updated" : "Project created");
       onClose();
     },
@@ -262,7 +262,7 @@ function ProjectsTab({ workspaceId }: { workspaceId: string }) {
   const remove = useMutation({
     mutationFn: (id: string) => api.removeProject(workspaceId, id),
     onSuccess: () => {
-      invalidate(keys.projectsAll(workspaceId));
+      void invalidate(keys.projectsAll(workspaceId));
       setDeleteProject(undefined);
       toast.success("Project deleted");
     },
@@ -390,7 +390,7 @@ function MembersTab({ workspaceId }: { workspaceId: string }) {
     mutationFn: () => api.addMember(workspaceId, { email, role }),
     onSuccess: () => {
       setEmail("");
-      refresh();
+      void refresh();
       toast.success("Member added");
     },
   });
@@ -398,7 +398,7 @@ function MembersTab({ workspaceId }: { workspaceId: string }) {
   const remove = useMutation({
     mutationFn: (id: string) => api.removeMember(workspaceId, id),
     onSuccess: () => {
-      refresh();
+      void refresh();
       setRemoveMember(undefined);
       toast.success("Member removed");
     },
@@ -515,7 +515,7 @@ function LabelsTab({ workspaceId }: { workspaceId: string }) {
     mutationFn: () => api.createLabel(workspaceId, { name, color }),
     onSuccess: () => {
       setName("");
-      refresh();
+      void refresh();
       toast.success("Label created");
     },
   });
@@ -523,7 +523,7 @@ function LabelsTab({ workspaceId }: { workspaceId: string }) {
   const remove = useMutation({
     mutationFn: (id: string) => api.removeLabel(workspaceId, id),
     onSuccess: () => {
-      refresh();
+      void refresh();
       setDeleteLabel(undefined);
       toast.success("Label deleted");
     },
@@ -633,7 +633,7 @@ function TaskTemplateForm({
         : api.createTaskTemplate(workspaceId, body);
     },
     onSuccess: () => {
-      invalidate(keys.taskTemplatesAll(workspaceId));
+      void invalidate(keys.taskTemplatesAll(workspaceId));
       toast.success(initial ? "Template updated" : "Template created");
       onClose();
     },
@@ -822,7 +822,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     },
     onSuccess: () => {
       setDeleteTemplate(undefined);
-      invalidate(keys.taskTemplatesAll(workspaceId));
+      void invalidate(keys.taskTemplatesAll(workspaceId));
       toast.success("Template deleted");
     },
   });
@@ -832,7 +832,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     onSuccess: () => {
       setBulkDeleteOpen(false);
       setSelectedTemplateIds([]);
-      invalidate(keys.taskTemplatesAll(workspaceId));
+      void invalidate(keys.taskTemplatesAll(workspaceId));
       toast.success("Templates deleted");
     },
   });
@@ -840,7 +840,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     mutationFn: (template: TaskTemplate) =>
       api.duplicateTaskTemplate(workspaceId, template.id),
     onSuccess: () => {
-      invalidate(keys.taskTemplatesAll(workspaceId));
+      void invalidate(keys.taskTemplatesAll(workspaceId));
       toast.success("Template duplicated");
     },
   });
@@ -858,9 +858,10 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
         </Button>
       </div>
       <div className="template-filters" ref={templateFiltersRef}>
-        <label className="template-search">
-          <Search size={15} />
+        <div className="template-search">
+          <Search size={15} aria-hidden="true" />
           <Input
+            aria-label="Search templates"
             value={search}
             placeholder="Search templates..."
             onChange={(event) => {
@@ -869,7 +870,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
               setSelectedTemplateIds([]);
             }}
           />
-        </label>
+        </div>
         <div className="task-filter-popover template-filter-popover">
           <button
             className={
@@ -1193,9 +1194,9 @@ export function WorkspacePage() {
   const remove = useMutation({
     mutationFn: () => api.removeWorkspace(workspaceId),
     onSuccess: () => {
-      invalidate(keys.workspaces);
+      void invalidate(keys.workspaces);
       toast.success("Workspace deleted");
-      navigate("/", { replace: true });
+      void navigate("/", { replace: true });
     },
   });
   useClickOutside(actionsRef, () => {

@@ -102,3 +102,20 @@ describe("auth flow", () => {
     expect(tokenStorage.getRefresh()).toBeNull();
   });
 });
+
+describe("sign out without the API", () => {
+  it("ends the local session even when the logout request fails", async () => {
+    localStorage.setItem("taskflow.refreshToken", "stored-refresh");
+    server.use(
+      http.post(apiUrl("/auth/logout"), () =>
+        HttpResponse.json({ message: "Server down" }, { status: 500 }),
+      ),
+    );
+    renderApp("/");
+    fireEvent.click(await screen.findByRole("button", { name: /sign out/i }));
+    expect(
+      await screen.findByRole("heading", { name: "Welcome back" }),
+    ).toBeInTheDocument();
+    expect(tokenStorage.getRefresh()).toBeNull();
+  });
+});

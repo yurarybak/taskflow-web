@@ -72,7 +72,7 @@ export function TaskReminders({ task }: { task: Task }) {
         : api.createReminder(task.id, remindAt);
     },
     onSuccess: () => {
-      refresh();
+      void refresh();
       closeReminderDialog();
       toast.success(editingReminder ? "Reminder updated" : "Reminder created");
     },
@@ -80,7 +80,7 @@ export function TaskReminders({ task }: { task: Task }) {
   const removeReminder = useMutation({
     mutationFn: (id: string) => api.removeReminder(task.id, id),
     onSuccess: () => {
-      refresh();
+      void refresh();
       toast.success("Reminder deleted");
     },
   });

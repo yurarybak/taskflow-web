@@ -19,7 +19,7 @@ export function Attachments({ taskId }: { taskId: string }) {
   const remove = useMutation({
     mutationFn: (id: string) => api.removeAttachment(taskId, id),
     onSuccess: () => {
-      refresh();
+      void refresh();
       setDeleteAttachment(undefined);
       toast.success("Attachment deleted");
     },

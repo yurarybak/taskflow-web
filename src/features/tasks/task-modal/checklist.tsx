@@ -42,7 +42,7 @@ export function Checklist({ taskId }: { taskId: string }) {
       }),
     onSuccess: () => {
       setTitle("");
-      refresh();
+      void refresh();
     },
   });
   const update = useMutation({
@@ -53,7 +53,7 @@ export function Checklist({ taskId }: { taskId: string }) {
     onSuccess: () => {
       setEditingId(null);
       setEditingTitle("");
-      refresh();
+      void refresh();
     },
   });
   const remove = useMutation({

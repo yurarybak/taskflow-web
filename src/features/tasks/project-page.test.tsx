@@ -217,7 +217,9 @@ describe("ProjectPage filters and keyboard access", () => {
 
   it("opens a task with the keyboard and closes it with Escape", async () => {
     renderApp(projectPath);
-    const card = (await screen.findByText("Write docs")).closest("article");
+    const card = (await screen.findByText("Write docs")).closest<HTMLElement>(
+      ".task-row",
+    );
     expect(card).toHaveAttribute("tabindex", "0");
     card!.focus();
     fireEvent.keyDown(card!, { key: "Enter" });

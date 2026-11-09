@@ -68,16 +68,20 @@ export const saveBlobFile = (blob: Blob, fileName: string) => {
   link.remove();
   URL.revokeObjectURL(url);
 };
-/** Resolves after `ms`, or rejects with the abort reason once `signal` aborts. */
+const abortError = (signal: AbortSignal) =>
+  signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException("The operation was aborted.", "AbortError");
+/** Resolves after `ms`, or rejects with an AbortError once `signal` aborts. */
 export const wait = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
-    if (signal?.aborted) return reject(signal.reason);
+    if (signal?.aborted) return reject(abortError(signal));
     const timer = window.setTimeout(resolve, ms);
     signal?.addEventListener(
       "abort",
       () => {
         window.clearTimeout(timer);
-        reject(signal.reason);
+        reject(abortError(signal));
       },
       { once: true },
     );

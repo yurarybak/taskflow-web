@@ -47,12 +47,19 @@ export function onSessionExpired(listener: () => void) {
   };
 }
 
+/** Reads a NestJS-style error body (`message` is a string or a list of strings). */
 async function readErrorMessage(response: Response) {
-  const body = await response.json().catch(() => ({}));
+  const body = (await response.json().catch(() => ({}))) as {
+    message?: unknown;
+  };
   const message = Array.isArray(body.message)
-    ? body.message.join(", ")
+    ? body.message
+        .filter((item): item is string => typeof item === "string")
+        .join(", ")
     : body.message;
-  return (message as string | undefined) || "Something went wrong";
+  return typeof message === "string" && message
+    ? message
+    : "Something went wrong";
 }
 
 /**
@@ -92,7 +99,7 @@ async function refreshSession(): Promise<AuthResponse | null> {
   }
   if (!response.ok)
     throw new ApiError(response.status, await readErrorMessage(response));
-  const auth = normalizeAuth(await response.json());
+  const auth = normalizeAuth((await response.json()) as AuthResponse);
   tokenStorage.set(auth.accessToken, auth.refreshToken);
   return auth;
 }
@@ -150,14 +157,26 @@ async function requestBlob(path: string, init: RequestInit = {}) {
   };
 }
 const json = (body: unknown) => ({ body: JSON.stringify(body) });
-const query = (values: Record<string, unknown>) => {
+type QueryValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | readonly (string | number)[];
+const query = (values: Record<string, QueryValue>) => {
   const search = new URLSearchParams();
   Object.entries(values).forEach(([key, value]) => {
     if (Array.isArray(value)) {
       if (value.length) search.set(key, value.join(","));
       return;
     }
-    if (value !== undefined && value !== "" && value !== false)
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== "" &&
+      value !== false
+    )
       search.set(key, String(value));
   });
   const result = search.toString();

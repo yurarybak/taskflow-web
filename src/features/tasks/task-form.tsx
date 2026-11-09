@@ -136,7 +136,7 @@ export function TaskForm({
       });
     },
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
+      void client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
       toast.success(initial ? "Task updated" : "Task created");
       onClose();
     },

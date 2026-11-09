@@ -94,8 +94,8 @@ export function TaskModal({
     queryFn: () => api.milestones(projectId),
   });
   const invalidate = () => {
-    client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
-    client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
+    void client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
+    void client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
   };
   const saveDescription = useMutation({
     mutationFn: () => api.updateTask(projectId, task.id, { description }),
@@ -230,11 +230,15 @@ export function TaskModal({
     },
     onMutate: () => toast.info("Preparing task CSV..."),
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: keys.taskExportsAll(projectId) });
+      void client.invalidateQueries({
+        queryKey: keys.taskExportsAll(projectId),
+      });
       toast.success("Task CSV downloaded");
     },
     onError: (e) => {
-      client.invalidateQueries({ queryKey: keys.taskExportsAll(projectId) });
+      void client.invalidateQueries({
+        queryKey: keys.taskExportsAll(projectId),
+      });
       // Closing the modal aborts the polling; that is not an error to report.
       if (isAbortError(e)) return;
       toast.error(e.message);
@@ -245,7 +249,7 @@ export function TaskModal({
   const removeTask = useMutation({
     mutationFn: () => api.removeTask(projectId, task.id),
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
+      void client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
       onClose();
       toast.success("Task deleted");
     },
