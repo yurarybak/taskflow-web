@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makePage, makeTask } from "../../test/fixtures";
@@ -50,6 +50,39 @@ describe("ProjectPage", () => {
     expect(within(dialog).getByText("team").tagName).toBe("B");
     expect(rendered?.querySelector("img")).toBeNull();
     expect(dialog.innerHTML).not.toContain("onerror");
+  });
+
+  it("shows the task details loaded for the open task", async () => {
+    server.use(
+      http.get(apiUrl("/projects/:projectId/tasks/:taskId"), () =>
+        HttpResponse.json(
+          makeTask({ description: "<p>Loaded from the details endpoint</p>" }),
+        ),
+      ),
+    );
+    renderApp(projectPath);
+    fireEvent.click(await screen.findByText("Write docs"));
+    const dialog = await screen.findByRole("dialog", { name: "Task details" });
+    expect(
+      await within(dialog).findByText("Loaded from the details endpoint"),
+    ).toBeInTheDocument();
+  });
+
+  it("searches tasks once the user stops typing", async () => {
+    const searches: string[] = [];
+    server.use(
+      http.get(apiUrl("/projects/:projectId/tasks"), ({ request }) => {
+        searches.push(new URL(request.url).searchParams.get("search") ?? "");
+        return HttpResponse.json(makePage([makeTask()]));
+      }),
+    );
+    renderApp(projectPath);
+    const search = await screen.findByPlaceholderText(/search/i);
+    for (const value of ["d", "do", "doc", "docs"]) {
+      fireEvent.change(search, { target: { value } });
+    }
+    await waitFor(() => expect(searches).toContain("docs"));
+    expect(searches).toEqual(["", "docs"]);
   });
 
   it("loads the next page of tasks on request", async () => {

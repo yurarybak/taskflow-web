@@ -27,15 +27,17 @@ React 19 + TypeScript SPA built with Vite. Server state goes through TanStack Qu
 ### Data layer (`src/lib/`)
 
 - **`api.ts`**: the single typed REST adapter. Every backend call is a method on the exported `api` object. Components never call `fetch` directly.
-  - `request<T>()` attaches the bearer token. On a 401 it calls `refreshOnce()` (one shared refresh, so concurrent 401s and the StrictMode double bootstrap refresh once) and retries the request once. Non-OK responses throw `ApiError(status, message)`, joining NestJS-style `message` arrays. A 204 returns `undefined`.
+  - `fetchWithAuth()` attaches the bearer token. On a 401 it calls `refreshOnce()` (one shared refresh, so concurrent 401s and the StrictMode double bootstrap refresh once) and retries the request once. Non-OK responses throw `ApiError(status, message)`, joining NestJS-style `message` arrays. `request<T>()` parses JSON on top of it (a 204 returns `undefined`).
   - **Session expiry**: only a 401/403 from `/auth/refresh` ends the session. It clears the tokens and fires `onSessionExpired` listeners (`AuthProvider` subscribes, clears the query cache and drops the user, so `Protected` redirects to `/login`). Network and 5xx errors are thrown and keep the refresh token.
-  - `requestBlob()` does the same for file downloads (task CSV exports) and reads the filename from `Content-Disposition`.
-  - **Response normalization**: list endpoints may return either a bare array or `Page<T>` (`{data, meta}`). `normalizePage` / `normalizeList` turn either into one shape, and `normalizeTask` defaults `labels` to `[]`. New list/task endpoints should go through these helpers.
+  - `requestBlob()` is the file-download variant (task CSV exports) and reads the filename from `Content-Disposition`.
+  - **Response normalization**: list endpoints may return either a bare array or `Page<T>` (`{data, meta}`). `normalizePage` / `normalizeList` turn either into one shape, and `normalizeTask` defaults `labels` to `[]`. `normalizeUser` keeps only known `User` fields, because `/users/me` also returns the password hash. New list/task/user endpoints should go through these helpers.
   - `query()` builds query strings: arrays are comma-joined, and `undefined`, `""` and `false` are dropped.
-- **`token-storage.ts`**: the access token lives only in memory. The refresh token is in `localStorage` (`taskflow.refreshToken`). On page load, `AuthProvider` calls `api.bootstrap()` (a refresh), then `api.me()`. Login, register and logout all call `queryClient.clear()` so no cached data crosses sessions.
+- **`token-storage.ts`**: the access token lives only in memory. The refresh token is in `localStorage` (`taskflow.refreshToken`). On page load, `AuthProvider` calls `api.bootstrap()`, which refreshes the session and returns the user from the refresh response (`/auth/me` is not used: it only returns `id` and `email`). Login, register and logout all call `queryClient.clear()` so no cached data crosses sessions.
+- **Current user**: `useAuth().user` is the only source. Don't add a separate "me"/"profile" query. After a profile change, call `useAuth().updateUser(updated)`.
 - **`query-client.ts`**: `createQueryClient()` is used by `main.tsx` and the tests. Its `MutationCache.onError` shows `toast.error` for any mutation **without its own `onError`**, so don't add `onError: (e) => toast.error(e.message)` by hand; write `onError` only when a mutation needs extra error handling.
 - **`sanitize.ts`**: `sanitizeRichText()` (DOMPurify, allowlist of formatting tags, no attributes). Any HTML from the API must go through it before `dangerouslySetInnerHTML` or `innerHTML`.
-- **`query-keys.ts`**: central factory for all query keys. Use `keys.*` for queries and invalidation. Some invalidations use prefix keys such as `["tasks", projectId]` to hit every filter variant.
+- **`query-keys.ts`**: central factory for all query keys. Use `keys.*` for queries and invalidation, never inline arrays. `keys.tasksAll`, `taskExportsAll`, `projectsAll` and `taskTemplatesAll` are prefixes that hit every filter/page variant.
+- **`src/hooks/`**: shared React hooks (`useDebouncedValue`, used for search inputs).
 - **`types.ts`**: frontend DTOs that mirror the API.
 
 ### Routing and auth (`src/app.tsx`, `src/features/auth/`)
@@ -52,7 +54,7 @@ Each feature is one or two large files that hold many private components, not a 
 
 Typical mutation pattern: `useMutation` → `onSuccess`: `client.invalidateQueries({ queryKey: keys.… })` + `toast.success` (sonner). Errors are toasted globally (see `query-client.ts`).
 
-The project task list is a `useInfiniteQuery` with pages of 100 (`TASKS_PAGE_SIZE`, the API maximum) and a "Load more tasks" button.
+The project task list is a `useInfiniteQuery` with pages of 100 (`TASKS_PAGE_SIZE`, the API maximum) and a "Load more tasks" button. Its search is debounced. `ProjectPage` keeps only `selectedTaskId`, and `TaskModal` gets the task from `useQuery(keys.task(...))`, with the list item as placeholder. So invalidating `keys.task` refreshes the open modal, and `onUpdated` writes to that cache entry. In view mode `TaskModal` renders `task` directly; the title/description drafts are copied only when editing starts.
 
 ### UI and styling
 

@@ -12,7 +12,7 @@ describe("api authentication", () => {
   beforeEach(() => tokenStorage.clear());
   afterEach(() => vi.unstubAllGlobals());
 
-  it("stores a refreshed session during bootstrap", async () => {
+  it("stores a refreshed session during bootstrap and returns its user", async () => {
     tokenStorage.set("old", "refresh-token");
     vi.stubGlobal(
       "fetch",
@@ -20,13 +20,33 @@ describe("api authentication", () => {
         response(200, {
           accessToken: "new-access",
           refreshToken: "new-refresh",
-          user: { id: "1", email: "me@example.com" },
+          user: { id: "1", email: "me@example.com", firstName: "Ada" },
         }),
       ),
     );
-    expect(await api.bootstrap()).toBe(true);
+    expect(await api.bootstrap()).toMatchObject({
+      id: "1",
+      email: "me@example.com",
+      firstName: "Ada",
+    });
     expect(tokenStorage.getAccess()).toBe("new-access");
     expect(tokenStorage.getRefresh()).toBe("new-refresh");
+  });
+
+  it("drops unknown user fields such as a password hash", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        response(200, {
+          id: "1",
+          email: "me@example.com",
+          password: "$2b$10$hash",
+        }),
+      ),
+    );
+    const profile = await api.profile();
+    expect(profile).not.toHaveProperty("password");
+    expect(profile).toMatchObject({ id: "1", email: "me@example.com" });
   });
 
   it("clears the session when refresh is rejected", async () => {
@@ -37,7 +57,7 @@ describe("api authentication", () => {
         .fn()
         .mockResolvedValue(response(401, { message: "Invalid refresh token" })),
     );
-    expect(await api.bootstrap()).toBe(false);
+    expect(await api.bootstrap()).toBeNull();
     expect(tokenStorage.getAccess()).toBeNull();
     expect(tokenStorage.getRefresh()).toBeNull();
   });
@@ -920,7 +940,7 @@ describe("api session refresh", () => {
     vi.stubGlobal("fetch", fetchMock);
     await expect(
       Promise.all([api.bootstrap(), api.bootstrap()]),
-    ).resolves.toEqual([true, true]);
+    ).resolves.toEqual([session.user, session.user]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

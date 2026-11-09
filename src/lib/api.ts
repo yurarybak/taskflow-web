@@ -26,7 +26,7 @@ import type {
 } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<AuthResponse | null> | null = null;
 
 export class ApiError extends Error {
   constructor(
@@ -56,13 +56,30 @@ async function readErrorMessage(response: Response) {
 }
 
 /**
- * Exchanges the refresh token for a new session. Resolves to `false` (and
+ * Keeps only the fields the UI knows about, so extra backend fields (such as
+ * a password hash) never end up in app state or the query cache.
+ */
+const normalizeUser = (user: User): User => ({
+  id: user.id,
+  email: user.email,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+});
+const normalizeAuth = (auth: AuthResponse): AuthResponse => ({
+  ...auth,
+  user: normalizeUser(auth.user),
+});
+
+/**
+ * Exchanges the refresh token for a new session. Resolves to `null` (and
  * clears the tokens) only when the backend rejects the token; network and
  * server errors are thrown so a temporary outage does not sign the user out.
  */
-async function refreshSession() {
+async function refreshSession(): Promise<AuthResponse | null> {
   const refreshToken = tokenStorage.getRefresh();
-  if (!refreshToken) return false;
+  if (!refreshToken) return null;
   const response = await fetch(`${API_URL}/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -71,13 +88,13 @@ async function refreshSession() {
   if (response.status === 401 || response.status === 403) {
     tokenStorage.clear();
     sessionExpiredListeners.forEach((listener) => listener());
-    return false;
+    return null;
   }
   if (!response.ok)
     throw new ApiError(response.status, await readErrorMessage(response));
-  const auth = (await response.json()) as AuthResponse;
+  const auth = normalizeAuth(await response.json());
   tokenStorage.set(auth.accessToken, auth.refreshToken);
-  return true;
+  return auth;
 }
 
 /** Runs one refresh at a time; concurrent callers share the same promise. */
@@ -88,45 +105,40 @@ function refreshOnce() {
   return refreshPromise;
 }
 
-async function request<T>(
+/**
+ * Sends an authenticated request. On a 401 it refreshes the session once and
+ * retries; any other non-OK response is thrown as an `ApiError`.
+ */
+async function fetchWithAuth(
   path: string,
   init: RequestInit = {},
   retry = true,
-): Promise<T> {
+): Promise<Response> {
   const headers = new Headers(init.headers);
   const token = tokenStorage.getAccess();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  if (!(init.body instanceof FormData) && init.body)
+  if (init.body && !(init.body instanceof FormData))
     headers.set("Content-Type", "application/json");
   const response = await fetch(`${API_URL}${path}`, { ...init, headers });
   if (
     response.status === 401 &&
     retry &&
     tokenStorage.getRefresh() &&
-    path !== "/auth/refresh"
-  ) {
-    if (await refreshOnce()) return request<T>(path, init, false);
-  }
+    (await refreshOnce())
+  )
+    return fetchWithAuth(path, init, false);
   if (!response.ok)
     throw new ApiError(response.status, await readErrorMessage(response));
+  return response;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetchWithAuth(path, init);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
-async function requestBlob(path: string, init: RequestInit = {}, retry = true) {
-  const headers = new Headers(init.headers);
-  const token = tokenStorage.getAccess();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers });
-  if (
-    response.status === 401 &&
-    retry &&
-    tokenStorage.getRefresh() &&
-    path !== "/auth/refresh"
-  ) {
-    if (await refreshOnce()) return requestBlob(path, init, false);
-  }
-  if (!response.ok)
-    throw new ApiError(response.status, await readErrorMessage(response));
+async function requestBlob(path: string, init: RequestInit = {}) {
+  const response = await fetchWithAuth(path, init);
   const disposition = response.headers.get("Content-Disposition") || "";
   const fileName =
     disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1] ||
@@ -175,16 +187,27 @@ const normalizeTaskPage = (response: Page<Task> | Task[]): Page<Task> => {
 };
 
 export const api = {
-  bootstrap: refreshOnce,
-  login: (body: { email: string; password: string }) =>
-    request<AuthResponse>("/auth/login", { method: "POST", ...json(body) }),
-  register: (body: {
+  /** Restores the session from the stored refresh token and returns its user, or `null`. */
+  bootstrap: async () => (await refreshOnce())?.user ?? null,
+  login: async (body: { email: string; password: string }) =>
+    normalizeAuth(
+      await request<AuthResponse>("/auth/login", {
+        method: "POST",
+        ...json(body),
+      }),
+    ),
+  register: async (body: {
     email: string;
     password: string;
     firstName?: string;
     lastName?: string;
   }) =>
-    request<AuthResponse>("/auth/register", { method: "POST", ...json(body) }),
+    normalizeAuth(
+      await request<AuthResponse>("/auth/register", {
+        method: "POST",
+        ...json(body),
+      }),
+    ),
   forgot: (email: string) =>
     request<{ success: boolean }>("/auth/forgot-password", {
       method: "POST",
@@ -195,10 +218,11 @@ export const api = {
       method: "POST",
       ...json(body),
     }),
-  me: () => request<User>("/auth/me"),
-  profile: () => request<User>("/users/me"),
-  updateProfile: (body: { firstName: string; lastName: string }) =>
-    request<User>("/users/me", { method: "PATCH", ...json(body) }),
+  profile: async () => normalizeUser(await request<User>("/users/me")),
+  updateProfile: async (body: { firstName: string; lastName: string }) =>
+    normalizeUser(
+      await request<User>("/users/me", { method: "PATCH", ...json(body) }),
+    ),
   changePassword: (body: { currentPassword: string; newPassword: string }) =>
     request<{ success: boolean }>("/users/me/password", {
       method: "PATCH",

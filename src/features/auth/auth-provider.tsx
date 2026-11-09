@@ -21,6 +21,8 @@ interface AuthValue {
     lastName?: string;
   }) => Promise<void>;
   logout: (all?: boolean) => Promise<void>;
+  /** Replaces the signed-in user after a profile change. */
+  updateUser: (user: User) => void;
 }
 const AuthContext = createContext<AuthValue | null>(null);
 
@@ -52,10 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         // StrictMode runs this effect twice; api.bootstrap shares one refresh
-        // between the runs and only the active run loads the user.
-        if (!(await api.bootstrap()) || !active) return;
-        const me = await api.me();
-        if (active) setUser(me);
+        // between the runs, and the refresh response already carries the user.
+        const restored = await api.bootstrap();
+        if (active) setUser(restored);
       } catch (error) {
         // Keep the refresh token on network or server errors so a reload
         // can restore the session once the backend is reachable again.
@@ -85,7 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, logout, updateUser: setUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

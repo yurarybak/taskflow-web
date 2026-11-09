@@ -1,29 +1,34 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Camera, KeyRound, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Avatar, Button, Field, Input, Skeleton } from "../../components/ui";
 import { api } from "../../lib/api";
+import type { User } from "../../lib/types";
 import { initials } from "../../lib/utils";
+import { useAuth } from "../auth/auth-provider";
 
 export function ProfilePage() {
+  const { user } = useAuth();
+  if (!user) return <Skeleton />;
+  return <ProfileSettings user={user} />;
+}
+
+function ProfileSettings({ user: data }: { user: User }) {
+  const { updateUser } = useAuth();
   const [avatarVersion, setAvatarVersion] = useState(0);
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["profile"],
-    queryFn: api.profile,
-  });
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState(data.firstName ?? "");
+  const [lastName, setLastName] = useState(data.lastName ?? "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const save = useMutation({
     mutationFn: () =>
       api.updateProfile({
-        firstName: firstName || data?.firstName || "",
-        lastName: lastName || data?.lastName || "",
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
       }),
-    onSuccess: () => {
-      refetch();
+    onSuccess: (updated) => {
+      updateUser(updated);
       toast.success("Profile updated");
     },
   });
@@ -38,7 +43,6 @@ export function ProfilePage() {
   const upload = useMutation({
     mutationFn: api.uploadAvatar,
     onSuccess: () => {
-      refetch();
       setAvatarVersion((value) => value + 1);
       toast.success("Avatar uploaded");
     },
@@ -46,12 +50,10 @@ export function ProfilePage() {
   const remove = useMutation({
     mutationFn: api.removeAvatar,
     onSuccess: () => {
-      refetch();
       setAvatarVersion((value) => value + 1);
       toast.success("Avatar removed");
     },
   });
-  if (isLoading || !data) return <Skeleton />;
   return (
     <>
       <header className="page-header">
@@ -115,14 +117,14 @@ export function ProfilePage() {
             <div className="form-grid">
               <Field label="First name">
                 <Input
-                  defaultValue={data.firstName}
+                  value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   required
                 />
               </Field>
               <Field label="Last name">
                 <Input
-                  defaultValue={data.lastName}
+                  value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   required
                 />

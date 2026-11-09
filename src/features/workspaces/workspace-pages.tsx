@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   ChevronDown,
@@ -28,6 +34,7 @@ import {
   Skeleton,
   Textarea,
 } from "../../components/ui";
+import { useDebouncedValue } from "../../hooks/use-debounced-value";
 import { api } from "../../lib/api";
 import { keys } from "../../lib/query-keys";
 import { initials, personName } from "../../lib/utils";
@@ -68,8 +75,7 @@ const humanizeConstant = (value: string) =>
 
 const useInvalidate = () => {
   const client = useQueryClient();
-  return (...key: readonly unknown[]) =>
-    client.invalidateQueries({ queryKey: key });
+  return (queryKey: QueryKey) => client.invalidateQueries({ queryKey });
 };
 function WorkspaceForm({
   initial,
@@ -87,7 +93,7 @@ function WorkspaceForm({
         ? api.updateWorkspace(initial.id, { name, description })
         : api.createWorkspace({ name, description }),
     onSuccess: () => {
-      invalidate(...keys.workspaces);
+      invalidate(keys.workspaces);
       toast.success(initial ? "Workspace updated" : "Workspace created");
       onClose();
     },
@@ -205,7 +211,7 @@ function ProjectForm({
         ? api.updateProject(workspaceId, initial.id, { name, description })
         : api.createProject(workspaceId, { name, description }),
     onSuccess: () => {
-      invalidate("projects", workspaceId);
+      invalidate(keys.projectsAll(workspaceId));
       toast.success(initial ? "Project updated" : "Project created");
       onClose();
     },
@@ -245,14 +251,16 @@ function ProjectsTab({ workspaceId }: { workspaceId: string }) {
   const [search, setSearch] = useState("");
   const [create, setCreate] = useState(false);
   const [edit, setEdit] = useState<Project>();
+  const debouncedSearch = useDebouncedValue(search.trim());
   const { data, isLoading } = useQuery({
-    queryKey: keys.projects(workspaceId, search),
-    queryFn: () => api.projects(workspaceId, search),
+    queryKey: keys.projects(workspaceId, debouncedSearch),
+    queryFn: () => api.projects(workspaceId, debouncedSearch),
+    placeholderData: keepPreviousData,
   });
   const remove = useMutation({
     mutationFn: (id: string) => api.removeProject(workspaceId, id),
     onSuccess: () => {
-      invalidate("projects", workspaceId);
+      invalidate(keys.projectsAll(workspaceId));
       toast.success("Project deleted");
     },
   });
@@ -369,7 +377,7 @@ function MembersTab({ workspaceId }: { workspaceId: string }) {
     queryKey: keys.members(workspaceId),
     queryFn: () => api.members(workspaceId),
   });
-  const refresh = () => invalidate(...keys.members(workspaceId));
+  const refresh = () => invalidate(keys.members(workspaceId));
   const add = useMutation({
     mutationFn: () => api.addMember(workspaceId, { email, role }),
     onSuccess: () => {
@@ -482,7 +490,7 @@ function LabelsTab({ workspaceId }: { workspaceId: string }) {
   });
   const [name, setName] = useState("");
   const [color, setColor] = useState("#2563EB");
-  const refresh = () => invalidate(...keys.labels(workspaceId));
+  const refresh = () => invalidate(keys.labels(workspaceId));
   const add = useMutation({
     mutationFn: () => api.createLabel(workspaceId, { name, color }),
     onSuccess: () => {
@@ -603,7 +611,7 @@ function TaskTemplateForm({
         : api.createTaskTemplate(workspaceId, body);
     },
     onSuccess: () => {
-      invalidate("task-templates", workspaceId);
+      invalidate(keys.taskTemplatesAll(workspaceId));
       toast.success(initial ? "Template updated" : "Template created");
       onClose();
     },
@@ -731,7 +739,9 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
   const [create, setCreate] = useState(false);
   const [edit, setEdit] = useState<TaskTemplate>();
   const [deleteTemplate, setDeleteTemplate] = useState<TaskTemplate>();
-  const effectiveSearch = search.trim().length >= 2 ? search.trim() : undefined;
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const effectiveSearch =
+    debouncedSearch.length >= 2 ? debouncedSearch : undefined;
   const templateFilters: TaskTemplateFilters = {
     page,
     limit: 10,
@@ -748,6 +758,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
   const { data, isLoading, error } = useQuery({
     queryKey: keys.taskTemplates(workspaceId, templateFilters),
     queryFn: () => api.taskTemplates(workspaceId, templateFilters),
+    placeholderData: keepPreviousData,
   });
   const visibleTemplateIds = data?.data.map((template) => template.id) ?? [];
   const selectedVisibleCount = visibleTemplateIds.filter((id) =>
@@ -799,7 +810,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     },
     onSuccess: () => {
       setDeleteTemplate(undefined);
-      invalidate("task-templates", workspaceId);
+      invalidate(keys.taskTemplatesAll(workspaceId));
       toast.success("Template deleted");
     },
   });
@@ -809,7 +820,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     onSuccess: () => {
       setBulkDeleteOpen(false);
       setSelectedTemplateIds([]);
-      invalidate("task-templates", workspaceId);
+      invalidate(keys.taskTemplatesAll(workspaceId));
       toast.success("Templates deleted");
     },
   });
@@ -817,7 +828,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     mutationFn: (template: TaskTemplate) =>
       api.duplicateTaskTemplate(workspaceId, template.id),
     onSuccess: () => {
-      invalidate("task-templates", workspaceId);
+      invalidate(keys.taskTemplatesAll(workspaceId));
       toast.success("Template duplicated");
     },
   });
@@ -1169,7 +1180,7 @@ export function WorkspacePage() {
   const remove = useMutation({
     mutationFn: () => api.removeWorkspace(workspaceId),
     onSuccess: () => {
-      invalidate(...keys.workspaces);
+      invalidate(keys.workspaces);
       location.assign("/");
     },
   });

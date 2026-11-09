@@ -60,6 +60,8 @@ import {
   Textarea,
 } from "../../components/ui";
 import { api } from "../../lib/api";
+import { useDebouncedValue } from "../../hooks/use-debounced-value";
+import { useAuth } from "../auth/auth-provider";
 import { keys } from "../../lib/query-keys";
 import { sanitizeRichText } from "../../lib/sanitize";
 import { initials, personName } from "../../lib/utils";
@@ -294,7 +296,22 @@ const saveBlobFile = (blob: Blob, fileName: string) => {
   link.remove();
   URL.revokeObjectURL(url);
 };
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Resolves after `ms`, or rejects with the abort reason once `signal` aborts. */
+const wait = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    const timer = window.setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        window.clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
+  });
+const isAbortError = (error: unknown) =>
+  error instanceof DOMException && error.name === "AbortError";
 function DatePickerField({
   value,
   disabled,
@@ -444,7 +461,7 @@ function TaskForm({
       });
     },
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["tasks", projectId] });
+      client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
       toast.success(initial ? "Task updated" : "Task created");
       onClose();
     },
@@ -1332,7 +1349,7 @@ function TimeTrackingDialog({
         ? (parsedRemaining.minutes ?? undefined)
         : undefined;
       client.invalidateQueries({ queryKey: keys.worklogs(projectId, task.id) });
-      client.invalidateQueries({ queryKey: ["tasks", projectId] });
+      client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
       client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
       onSaved(spent, nextRemaining);
       setTimeSpent("");
@@ -1621,7 +1638,7 @@ function WorklogList({
     });
   const refresh = () => {
     client.invalidateQueries({ queryKey: keys.worklogs(projectId, task.id) });
-    client.invalidateQueries({ queryKey: ["tasks", projectId] });
+    client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
     client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
   };
   const remove = useMutation({
@@ -2505,6 +2522,14 @@ function TaskModal({
   const [originalEstimate, setOriginalEstimate] = useState(
     formatEstimate(task.originalEstimateMinutes),
   );
+  // Reset the estimate input when fresh task data arrives from the server.
+  const [estimateSource, setEstimateSource] = useState(
+    task.originalEstimateMinutes,
+  );
+  if (estimateSource !== task.originalEstimateMinutes) {
+    setEstimateSource(task.originalEstimateMinutes);
+    setOriginalEstimate(formatEstimate(task.originalEstimateMinutes));
+  }
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [activityTab, setActivityTab] = useState<
@@ -2516,10 +2541,7 @@ function TaskModal({
   const actionsRef = useRef<HTMLDivElement>(null);
   const titleEditRef = useRef<HTMLDivElement>(null);
   const parsedOriginalEstimate = parseEstimate(originalEstimate);
-  const { data: currentUser } = useQuery({
-    queryKey: ["me"],
-    queryFn: api.me,
-  });
+  const currentUser = useAuth().user ?? undefined;
   const { data: labels } = useQuery({
     queryKey: keys.labels(workspaceId),
     queryFn: () => api.labels(workspaceId),
@@ -2533,18 +2555,13 @@ function TaskModal({
     queryFn: () => api.milestones(projectId),
   });
   const invalidate = () => {
-    client.invalidateQueries({ queryKey: ["tasks", projectId] });
+    client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
     client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
   };
-  const saveTask = useMutation({
-    mutationFn: () =>
-      api.updateTask(projectId, task.id, {
-        title,
-        description,
-      }),
+  const saveDescription = useMutation({
+    mutationFn: () => api.updateTask(projectId, task.id, { description }),
     onSuccess: (updated) => {
       onUpdated(updated);
-      setEditingTitle(false);
       setEditingDescription(false);
       invalidate();
       toast.success("Task updated");
@@ -2639,11 +2656,16 @@ function TaskModal({
   });
   const exportTaskCsv = useMutation({
     mutationFn: async () => {
+      exportAbortRef.current?.abort();
+      const controller = new AbortController();
+      exportAbortRef.current = controller;
+      const { signal } = controller;
       const created = await api.createTaskExport(projectId, {
         taskIds: [task.id],
       });
       let taskExport = created;
       for (let attempt = 0; attempt < 30; attempt += 1) {
+        signal.throwIfAborted();
         if (taskExport.status === "COMPLETED") {
           const { blob, fileName } = await api.downloadTaskExport(
             projectId,
@@ -2660,7 +2682,7 @@ function TaskModal({
             taskExport.error || "Task export could not be created",
           );
         }
-        await wait(1000);
+        await wait(1000, signal);
         taskExport = await api.taskExport(projectId, taskExport.id);
       }
       throw new Error(
@@ -2669,25 +2691,37 @@ function TaskModal({
     },
     onMutate: () => toast.info("Preparing task CSV..."),
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["task-exports", projectId] });
+      client.invalidateQueries({ queryKey: keys.taskExportsAll(projectId) });
       toast.success("Task CSV downloaded");
     },
     onError: (e) => {
-      client.invalidateQueries({ queryKey: ["task-exports", projectId] });
+      client.invalidateQueries({ queryKey: keys.taskExportsAll(projectId) });
+      // Closing the modal aborts the polling; that is not an error to report.
+      if (isAbortError(e)) return;
       toast.error(e.message);
     },
   });
+  const exportAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => exportAbortRef.current?.abort(), []);
   const removeTask = useMutation({
     mutationFn: () => api.removeTask(projectId, task.id),
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["tasks", projectId] });
+      client.invalidateQueries({ queryKey: keys.tasksAll(projectId) });
       onClose();
       toast.success("Task deleted");
     },
   });
-  const cancelEdit = () => {
+  // Drafts are copied from the latest task data when editing starts; outside
+  // of editing the modal renders `task` directly.
+  const startTitleEdit = () => {
     setTitle(task.title);
+    setEditingTitle(true);
+  };
+  const startDescriptionEdit = () => {
     setDescription(task.description || "");
+    setEditingDescription(true);
+  };
+  const cancelEdit = () => {
     setEditingTitle(false);
     setEditingDescription(false);
   };
@@ -2867,11 +2901,8 @@ function TaskModal({
               </div>
             </div>
           ) : (
-            <button
-              className="editable-title"
-              onClick={() => setEditingTitle(true)}
-            >
-              {title}
+            <button className="editable-title" onClick={startTitleEdit}>
+              {task.title}
             </button>
           )}
           <section>
@@ -2885,8 +2916,8 @@ function TaskModal({
                 />
                 <div className="inline-actions">
                   <Button
-                    loading={saveTask.isPending}
-                    onClick={() => saveTask.mutate()}
+                    loading={saveDescription.isPending}
+                    onClick={() => saveDescription.mutate()}
                   >
                     Save
                   </Button>
@@ -2900,17 +2931,17 @@ function TaskModal({
                 role="button"
                 tabIndex={0}
                 className="editable-description"
-                onClick={() => setEditingDescription(true)}
+                onClick={startDescriptionEdit}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
-                    setEditingDescription(true);
+                    startDescriptionEdit();
                   }
                 }}
               >
-                {description ? (
+                {task.description ? (
                   <div
                     dangerouslySetInnerHTML={{
-                      __html: sanitizeRichText(description),
+                      __html: sanitizeRichText(task.description),
                     }}
                   />
                 ) : (
@@ -3532,7 +3563,7 @@ function TaskExportsDialog({
     },
   });
   const invalidate = () =>
-    client.invalidateQueries({ queryKey: ["task-exports", projectId] });
+    client.invalidateQueries({ queryKey: keys.taskExportsAll(projectId) });
   useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
       if (
@@ -4116,7 +4147,7 @@ export function ProjectPage() {
   const [projectTab, setProjectTab] = useState<"tasks" | "milestones">("tasks");
   const [view, setView] = useState<"list" | "board">("board");
   const [filters, setFilters] = useState<TaskFilters>({});
-  const [selected, setSelected] = useState<Task>();
+  const [selectedTaskId, setSelectedTaskId] = useState<string>();
   const [saveFilterOpen, setSaveFilterOpen] = useState(false);
   const [saveFilterName, setSaveFilterName] = useState("");
   const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(
@@ -4303,6 +4334,12 @@ export function ProjectPage() {
       toast.success("Saved filter deleted");
     },
   });
+  // Typing in the search box only refetches once the user pauses.
+  const debouncedSearch = useDebouncedValue(filters.search ?? "");
+  const queryFilters = cleanTaskFilters({
+    ...filters,
+    search: debouncedSearch,
+  });
   const {
     data,
     isLoading,
@@ -4311,10 +4348,10 @@ export function ProjectPage() {
     fetchNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: keys.tasks(projectId, filters),
+    queryKey: keys.tasks(projectId, queryFilters),
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
-      api.tasks(projectId, filters, {
+      api.tasks(projectId, queryFilters, {
         page: pageParam,
         limit: TASKS_PAGE_SIZE,
       }),
@@ -4325,11 +4362,23 @@ export function ProjectPage() {
   });
   const tasks = data?.pages.flatMap((page) => page.data) ?? [];
   const totalTasks = data?.pages.at(-1)?.meta.total ?? tasks.length;
+  // The open task is read from the query cache, so invalidating keys.task
+  // refreshes the modal. The list item is shown while the details load.
+  const { data: selectedTask } = useQuery({
+    queryKey: keys.task(projectId, selectedTaskId ?? ""),
+    queryFn: () => api.task(projectId, selectedTaskId as string),
+    enabled: !!selectedTaskId,
+    placeholderData: () => tasks.find((task) => task.id === selectedTaskId),
+  });
+  const showUpdatedTask = (task: Task) => {
+    client.setQueryData(keys.task(projectId, task.id), task);
+    setSelectedTaskId(task.id);
+  };
   const updateStatus = useMutation({
     mutationFn: ({ task, status }: { task: Task; status: TaskStatus }) =>
       api.updateTask(projectId, task.id, { status }),
     onSuccess: () =>
-      client.invalidateQueries({ queryKey: ["tasks", projectId] }),
+      client.invalidateQueries({ queryKey: keys.tasksAll(projectId) }),
   });
   const handleDrop = (event: DragEvent<HTMLElement>, status: TaskStatus) => {
     event.preventDefault();
@@ -4363,7 +4412,7 @@ export function ProjectPage() {
           setDraggedTaskId(null);
           setDropTarget(null);
         }}
-        onClick={() => setSelected(task)}
+        onClick={() => setSelectedTaskId(task.id)}
       >
         <div>
           <span className="task-card-icon-row">
@@ -5015,14 +5064,14 @@ export function ProjectPage() {
               onClose={() => setExportsOpen(false)}
             />
           )}
-          {selected && (
+          {selectedTask && (
             <TaskModal
-              key={selected.id}
+              key={selectedTask.id}
               workspaceId={workspaceId}
               projectId={projectId}
-              task={selected}
-              onUpdated={setSelected}
-              onClose={() => setSelected(undefined)}
+              task={selectedTask}
+              onUpdated={showUpdatedTask}
+              onClose={() => setSelectedTaskId(undefined)}
             />
           )}
         </>
