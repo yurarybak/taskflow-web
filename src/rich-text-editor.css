@@ -28,9 +28,18 @@
   outline: none;
 }
 
-.rich-text-surface:empty::before {
+/* Tiptap's Placeholder extension marks the empty first paragraph. */
+.rich-text-surface p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
+  float: left;
+  height: 0;
   color: #94a3b8;
+  pointer-events: none;
+}
+
+.rich-text-toolbar .button.is-active {
+  background: #e0e7ff;
+  color: #1d4ed8;
 }
 
 .rich-text-surface ul,

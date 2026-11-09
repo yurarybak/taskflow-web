@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Clock, Flag, MoreHorizontal, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Button,
@@ -8,8 +8,9 @@ import {
   Dialog,
   Input,
   Select,
+  Skeleton,
 } from "../../../components/ui";
-import { RichTextEditor } from "../../../components/rich-text-editor";
+
 import { api } from "../../../lib/api";
 import { useClickOutside } from "../../../hooks/use-click-outside";
 import { useDismiss } from "../../../hooks/use-dismiss";
@@ -42,6 +43,14 @@ import {
   UserDropdown,
 } from "../task-fields";
 import { TaskReminders } from "./reminders";
+
+// Tiptap/ProseMirror is large, so the editor is its own chunk. It starts
+// loading as soon as the pointer or focus reaches the description.
+const loadRichTextEditor = () => import("../../../components/rich-text-editor");
+const preloadRichTextEditor = () => void loadRichTextEditor();
+const RichTextEditor = lazy(() =>
+  loadRichTextEditor().then((module) => ({ default: module.RichTextEditor })),
+);
 
 export function TaskModal({
   workspaceId,
@@ -430,12 +439,17 @@ export function TaskModal({
           <section>
             <h3>Description</h3>
             {editingDescription ? (
-              <>
-                <RichTextEditor
-                  value={description}
-                  onChange={setDescription}
-                  placeholder="Add a description..."
-                />
+              <div className="description-editor">
+                <Suspense fallback={<Skeleton rows={3} />}>
+                  <RichTextEditor
+                    value={description}
+                    onChange={setDescription}
+                    // Like the title input: Escape cancels the edit instead
+                    // of closing the whole modal.
+                    onEscape={cancelEdit}
+                    placeholder="Add a description..."
+                  />
+                </Suspense>
                 <div className="inline-actions">
                   <Button
                     loading={saveDescription.isPending}
@@ -447,12 +461,14 @@ export function TaskModal({
                     Cancel
                   </Button>
                 </div>
-              </>
+              </div>
             ) : (
               <div
                 role="button"
                 tabIndex={0}
                 className="editable-description"
+                onPointerEnter={preloadRichTextEditor}
+                onFocus={preloadRichTextEditor}
                 onClick={startDescriptionEdit}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {

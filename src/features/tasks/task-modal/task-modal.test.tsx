@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Attachment } from "../../../lib/types";
+import { makeTask } from "../../../test/fixtures";
 import { apiUrl, server } from "../../../test/server";
 import { renderApp } from "../../../test/render";
 
@@ -126,6 +127,66 @@ describe("TaskModal dropdowns", () => {
     expect(
       within(dialog).queryByRole("button", { name: "High" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Task details" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("TaskModal description", () => {
+  beforeEach(() => {
+    localStorage.setItem("taskflow.refreshToken", "stored-refresh");
+  });
+
+  it("edits the description with the rich text editor and saves its HTML", async () => {
+    let sent: { description?: string } | undefined;
+    server.use(
+      http.get(apiUrl("/projects/:projectId/tasks/:taskId"), () =>
+        HttpResponse.json(
+          makeTask({ description: "<p><b>Steps</b> to reproduce</p>" }),
+        ),
+      ),
+      http.patch(
+        apiUrl("/projects/:projectId/tasks/:taskId"),
+        async ({ request }) => {
+          sent = (await request.json()) as { description?: string };
+          return HttpResponse.json(makeTask({ description: sent.description }));
+        },
+      ),
+    );
+    const dialog = await openTask();
+    fireEvent.click(
+      await within(dialog).findByText("to reproduce", { exact: false }),
+    );
+    const editor = await within(dialog).findByRole("textbox", {
+      name: "Add a description...",
+    });
+    expect(within(editor).getByText("Steps").tagName).toBe("STRONG");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Bullet list" }),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(sent?.description).toBe(
+        "<ul><li><p><strong>Steps</strong> to reproduce</p></li></ul>",
+      ),
+    );
+  });
+
+  it("cancels the description edit on Escape and keeps the modal open", async () => {
+    const dialog = await openTask();
+    fireEvent.click(await within(dialog).findByText("Add a description..."));
+    const editor = await within(dialog).findByRole("textbox", {
+      name: "Add a description...",
+    });
+    fireEvent.keyDown(editor, { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByRole("textbox", {
+          name: "Add a description...",
+        }),
+      ).not.toBeInTheDocument(),
+    );
     expect(
       screen.getByRole("dialog", { name: "Task details" }),
     ).toBeInTheDocument();
