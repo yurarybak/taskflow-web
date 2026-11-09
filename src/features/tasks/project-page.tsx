@@ -43,7 +43,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Badge,
@@ -60,12 +60,30 @@ import {
   Textarea,
 } from "../../components/ui";
 import { api } from "../../lib/api";
+import { useClickOutside } from "../../hooks/use-click-outside";
 import { useDebouncedValue } from "../../hooks/use-debounced-value";
+import { nextPageParam, useLoadMore } from "../../hooks/use-load-more";
 import { useAuth } from "../auth/auth-provider";
+import {
+  cleanTaskFilters,
+  comparableFilters,
+  filtersFromParams,
+  hasFilterParams,
+  normalizeSavedFilters,
+  paramsWithFilters,
+  priorities,
+  savedFilterIdFromParams,
+  savedFilterStorageKey,
+  statuses,
+  taskFiltersRecord,
+  toggleValue,
+  types,
+} from "./task-filters";
 import { keys } from "../../lib/query-keys";
 import { sanitizeRichText } from "../../lib/sanitize";
 import { initials, personName } from "../../lib/utils";
 import type {
+  Attachment,
   Label,
   Member,
   Milestone,
@@ -88,31 +106,6 @@ import type {
 
 // The API rejects page sizes above 100.
 const TASKS_PAGE_SIZE = 100;
-const statuses: TaskStatus[] = ["TODO", "IN_PROGRESS", "DONE"];
-const priorities: TaskPriority[] = ["LOW", "MEDIUM", "HIGH"];
-const types: TaskType[] = ["TASK", "BUG", "FEATURE", "IMPROVEMENT"];
-const isStatus = (value: unknown): value is TaskStatus =>
-  typeof value === "string" && statuses.includes(value as TaskStatus);
-const isPriority = (value: unknown): value is TaskPriority =>
-  typeof value === "string" && priorities.includes(value as TaskPriority);
-const isType = (value: unknown): value is TaskType =>
-  typeof value === "string" && types.includes(value as TaskType);
-const stringArray = (value: unknown) =>
-  Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : undefined;
-const cleanTaskFilters = (filters: TaskFilters): TaskFilters => ({
-  ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
-  ...(filters.statuses?.length ? { statuses: filters.statuses } : {}),
-  ...(filters.priorities?.length ? { priorities: filters.priorities } : {}),
-  ...(filters.types?.length ? { types: filters.types } : {}),
-  ...(filters.assigneeIds?.length ? { assigneeIds: filters.assigneeIds } : {}),
-  ...(filters.unassigned ? { unassigned: true } : {}),
-  ...(filters.milestoneIds?.length
-    ? { milestoneIds: filters.milestoneIds }
-    : {}),
-  ...(filters.withoutMilestone ? { withoutMilestone: true } : {}),
-});
 const cleanTaskExportFilters = (
   filters: TaskExportFilters,
 ): TaskExportFilters => ({
@@ -158,41 +151,6 @@ const taskExportFilterCount = (filters: TaskExportFilters) => {
     (clean.includeArchived ? 1 : 0) +
     (clean.search ? 1 : 0)
   );
-};
-const taskFiltersRecord = (filters: TaskFilters): Record<string, unknown> => ({
-  ...filters,
-});
-const savedFilterStorageKey = (projectId: string) =>
-  `taskflow.activeSavedFilter.${projectId}`;
-const comparableFilters = (filters: TaskFilters) =>
-  JSON.stringify({
-    ...cleanTaskFilters(filters),
-    statuses: [...(filters.statuses ?? [])].sort(),
-    priorities: [...(filters.priorities ?? [])].sort(),
-    types: [...(filters.types ?? [])].sort(),
-    assigneeIds: [...(filters.assigneeIds ?? [])].sort(),
-    milestoneIds: [...(filters.milestoneIds ?? [])].sort(),
-  });
-const normalizeSavedFilters = (value: Record<string, unknown>): TaskFilters => {
-  const statusesValue = Array.isArray(value.statuses)
-    ? value.statuses.filter(isStatus)
-    : undefined;
-  const prioritiesValue = Array.isArray(value.priorities)
-    ? value.priorities.filter(isPriority)
-    : undefined;
-  const typesValue = Array.isArray(value.types)
-    ? value.types.filter(isType)
-    : undefined;
-  return cleanTaskFilters({
-    search: typeof value.search === "string" ? value.search : undefined,
-    statuses: statusesValue,
-    priorities: prioritiesValue,
-    types: typesValue,
-    assigneeIds: stringArray(value.assigneeIds),
-    unassigned: value.unassigned === true,
-    milestoneIds: stringArray(value.milestoneIds),
-    withoutMilestone: value.withoutMilestone === true,
-  });
 };
 const statusLabel = (status: TaskStatus) =>
   ({ TODO: "To do", IN_PROGRESS: "In progress", DONE: "Done" })[status];
@@ -769,21 +727,13 @@ function Comments({
       initialPageParam: 1,
       queryFn: ({ pageParam }) =>
         api.comments(taskId, { page: pageParam, limit: 10 }),
-      getNextPageParam: (lastPage) =>
-        lastPage.meta.page < lastPage.meta.totalPages
-          ? lastPage.meta.page + 1
-          : undefined,
+      getNextPageParam: nextPageParam,
     });
-  useEffect(() => {
-    if (!hasNextPage || !loadMoreRef.current) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && !isFetchingNextPage) {
-        fetchNextPage();
-      }
-    });
-    observer.observe(loadMoreRef.current);
-    return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+  useLoadMore(loadMoreRef, {
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
   const comments = [...(data?.pages.flatMap((page) => page.data) ?? [])].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
@@ -1239,21 +1189,13 @@ function History({ taskId }: { taskId: string }) {
       initialPageParam: 1,
       queryFn: ({ pageParam }) =>
         api.activity(taskId, { page: pageParam, limit: 10 }),
-      getNextPageParam: (lastPage) =>
-        lastPage.meta.page < lastPage.meta.totalPages
-          ? lastPage.meta.page + 1
-          : undefined,
+      getNextPageParam: nextPageParam,
     });
-  useEffect(() => {
-    if (!hasNextPage || !loadMoreRef.current) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && !isFetchingNextPage) {
-        fetchNextPage();
-      }
-    });
-    observer.observe(loadMoreRef.current);
-    return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+  useLoadMore(loadMoreRef, {
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
   const activity = [...(data?.pages.flatMap((page) => page.data) ?? [])].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
@@ -1631,10 +1573,7 @@ function WorklogList({
       initialPageParam: 1,
       queryFn: ({ pageParam }) =>
         api.worklogs(projectId, task.id, { page: pageParam, limit: 10 }),
-      getNextPageParam: (lastPage) =>
-        lastPage.meta.page < lastPage.meta.totalPages
-          ? lastPage.meta.page + 1
-          : undefined,
+      getNextPageParam: nextPageParam,
     });
   const refresh = () => {
     client.invalidateQueries({ queryKey: keys.worklogs(projectId, task.id) });
@@ -1661,16 +1600,11 @@ function WorklogList({
       toast.success("Worklog deleted");
     },
   });
-  useEffect(() => {
-    if (!hasNextPage || !loadMoreRef.current) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && !isFetchingNextPage) {
-        fetchNextPage();
-      }
-    });
-    observer.observe(loadMoreRef.current);
-    return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+  useLoadMore(loadMoreRef, {
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
   const worklogs = [...(data?.pages.flatMap((page) => page.data) ?? [])].sort(
     (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
   );
@@ -1775,9 +1709,14 @@ function Attachments({ taskId }: { taskId: string }) {
   });
   const refresh = () =>
     client.invalidateQueries({ queryKey: keys.attachments(taskId) });
+  const [deleteAttachment, setDeleteAttachment] = useState<Attachment>();
   const remove = useMutation({
     mutationFn: (id: string) => api.removeAttachment(taskId, id),
-    onSuccess: refresh,
+    onSuccess: () => {
+      refresh();
+      setDeleteAttachment(undefined);
+      toast.success("Attachment deleted");
+    },
   });
   const upload = useMutation({
     mutationFn: (file: File) => api.uploadAttachment(taskId, file),
@@ -1797,15 +1736,22 @@ function Attachments({ taskId }: { taskId: string }) {
             <small>{Math.ceil(file.size / 1024)} KB</small>
             <Button
               variant="ghost"
-              onClick={() =>
-                confirm("Delete this attachment?") && remove.mutate(file.id)
-              }
+              aria-label={`Delete ${file.originalName}`}
+              onClick={() => setDeleteAttachment(file)}
             >
               <Trash2 size={14} />
             </Button>
           </div>
         ))}
       </div>
+      <ConfirmDialog
+        open={!!deleteAttachment}
+        title="Delete attachment?"
+        description={`"${deleteAttachment?.originalName}" will be permanently deleted.`}
+        loading={remove.isPending}
+        onConfirm={() => deleteAttachment && remove.mutate(deleteAttachment.id)}
+        onClose={() => setDeleteAttachment(undefined)}
+      />
       <label className="upload">
         <FileUp size={15} /> Upload file
         <input
@@ -1838,16 +1784,9 @@ function PriorityDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(ref, () => {
+    setOpen(false);
+  });
   return (
     <div className="priority-dropdown" ref={ref}>
       <button
@@ -1903,16 +1842,9 @@ function TypeDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(ref, () => {
+    setOpen(false);
+  });
   return (
     <div className="type-dropdown" ref={ref}>
       <button
@@ -1964,16 +1896,9 @@ function UserDropdown({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = findUserById(members, value);
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(ref, () => {
+    setOpen(false);
+  });
   return (
     <div className="user-dropdown" ref={ref}>
       <button
@@ -2054,16 +1979,9 @@ function MilestoneDropdown({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = findMilestoneById(milestones, value);
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(ref, () => {
+    setOpen(false);
+  });
   return (
     <div className="user-dropdown milestone-dropdown" ref={ref}>
       <button
@@ -2410,17 +2328,10 @@ function WatchersPopover({
     mutationFn: (userId: string) => api.removeWatcher(taskId, userId),
     onSuccess: refresh,
   });
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-        setAdding(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(ref, () => {
+    setOpen(false);
+    setAdding(false);
+  });
   return (
     <div className="watchers-menu" ref={ref}>
       <Button
@@ -2733,29 +2644,8 @@ function TaskModal({
     if (nextValue === (task.originalEstimateMinutes ?? null)) return;
     updateModalField.mutate({ originalEstimateMinutes: nextValue });
   };
-  useEffect(() => {
-    if (!editingTitle) return;
-    const closeTitleEditOnOutsideClick = (event: PointerEvent) => {
-      if (
-        titleEditRef.current &&
-        !titleEditRef.current.contains(event.target as Node)
-      ) {
-        setTitle(task.title);
-        setEditingTitle(false);
-      }
-    };
-    document.addEventListener(
-      "pointerdown",
-      closeTitleEditOnOutsideClick,
-      true,
-    );
-    return () =>
-      document.removeEventListener(
-        "pointerdown",
-        closeTitleEditOnOutsideClick,
-        true,
-      );
-  }, [editingTitle, task.title]);
+  // Clicking away discards the title draft (startTitleEdit makes a fresh one).
+  useClickOutside(titleEditRef, () => setEditingTitle(false), editingTitle);
   const toggle = useMutation({
     mutationFn: (label: Label) =>
       (task.labels ?? []).some((x) => x.id === label.id)
@@ -2767,19 +2657,9 @@ function TaskModal({
     (member) =>
       member.userId === currentUser?.id || member.user.id === currentUser?.id,
   );
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (
-        actionsRef.current &&
-        !actionsRef.current.contains(event.target as Node)
-      ) {
-        setActionsOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(actionsRef, () => {
+    setActionsOpen(false);
+  });
   return (
     <Dialog
       open
@@ -2880,7 +2760,18 @@ function TaskModal({
                 className="task-title-input"
                 value={title}
                 autoFocus
+                aria-label="Task title"
                 onChange={(event) => setTitle(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && title.trim()) {
+                    event.preventDefault();
+                    saveTitle.mutate();
+                  } else if (event.key === "Escape") {
+                    // Cancel the edit instead of closing the whole modal.
+                    event.preventDefault();
+                    cancelEdit();
+                  }
+                }}
               />
               <div className="title-edit-actions">
                 <Button
@@ -3564,19 +3455,9 @@ function TaskExportsDialog({
   });
   const invalidate = () =>
     client.invalidateQueries({ queryKey: keys.taskExportsAll(projectId) });
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (
-        exportFiltersRef.current &&
-        !exportFiltersRef.current.contains(event.target as Node)
-      ) {
-        setOpenExportFilter(null);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(exportFiltersRef, () => {
+    setOpenExportFilter(null);
+  });
   const toggleExportArrayValue = (
     key:
       | "statuses"
@@ -3587,19 +3468,12 @@ function TaskExportsDialog({
       | "milestoneIds",
     value: string,
   ) => {
-    const current = (exportFilters[key] as string[] | undefined) ?? [];
-    const next = current.includes(value)
-      ? current.filter((item) => item !== value)
-      : [...current, value];
+    const next = toggleValue<string>(exportFilters[key], value);
     setExportFilters({
       ...exportFilters,
-      [key]: next.length ? next : undefined,
-      ...(key === "assigneeIds" && next.length
-        ? { withoutAssignee: false }
-        : {}),
-      ...(key === "milestoneIds" && next.length
-        ? { withoutMilestone: false }
-        : {}),
+      [key]: next,
+      ...(key === "assigneeIds" && next ? { withoutAssignee: false } : {}),
+      ...(key === "milestoneIds" && next ? { withoutMilestone: false } : {}),
     });
   };
   const createExport = useMutation({
@@ -4138,21 +4012,44 @@ function TaskExportsDialog({
   );
 }
 export function ProjectPage() {
+  const { projectId = "" } = useParams();
+  // A new key per project resets all page state when switching projects.
+  return <ProjectBoard key={projectId} />;
+}
+
+function ProjectBoard() {
   const { workspaceId = "", projectId = "" } = useParams();
   const client = useQueryClient();
   const filtersRef = useRef<HTMLDivElement>(null);
-  const restoredSavedFilterProjectRef = useRef<string | null>(null);
   const [create, setCreate] = useState(false);
   const [exportsOpen, setExportsOpen] = useState(false);
   const [projectTab, setProjectTab] = useState<"tasks" | "milestones">("tasks");
   const [view, setView] = useState<"list" | "board">("board");
-  const [filters, setFilters] = useState<TaskFilters>({});
+  // Filters and the active saved filter live in the URL, so a filtered view
+  // can be shared and survives a reload.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = filtersFromParams(searchParams);
+  const activeSavedFilterId = savedFilterIdFromParams(searchParams);
+  const setFilters = (
+    next: TaskFilters,
+    savedFilterId: string | null = activeSavedFilterId,
+  ) =>
+    setSearchParams(
+      (current) => paramsWithFilters(current, next, savedFilterId),
+      { replace: true },
+    );
+  const applySavedFilter = (savedFilter: SavedTaskFilter | null) => {
+    setFilters(
+      savedFilter ? normalizeSavedFilters(savedFilter.filters) : {},
+      savedFilter?.id ?? null,
+    );
+    if (savedFilter)
+      localStorage.setItem(savedFilterStorageKey(projectId), savedFilter.id);
+    else localStorage.removeItem(savedFilterStorageKey(projectId));
+  };
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
   const [saveFilterOpen, setSaveFilterOpen] = useState(false);
   const [saveFilterName, setSaveFilterName] = useState("");
-  const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(
-    null,
-  );
   const [editFilter, setEditFilter] = useState<SavedTaskFilter>();
   const [editFilterName, setEditFilterName] = useState("");
   const [editFilterUsesCurrent, setEditFilterUsesCurrent] = useState(false);
@@ -4209,77 +4106,48 @@ export function ProjectPage() {
       comparableFilters(normalizeSavedFilters(activeSavedFilter.filters));
   const invalidateSavedFilters = () =>
     client.invalidateQueries({ queryKey: keys.savedFilters(projectId) });
+  // Opening a project without filters in the URL restores the saved filter
+  // that was last active there (remembered in localStorage). Runs once, after
+  // the saved filters have loaded; it syncs the URL, not React state.
+  const restoredSavedFilterRef = useRef(false);
   useEffect(() => {
-    if (!projectId || !savedFilters) return;
-    if (restoredSavedFilterProjectRef.current === projectId) return;
-    restoredSavedFilterProjectRef.current = projectId;
-    const savedFilterId = localStorage.getItem(
-      savedFilterStorageKey(projectId),
-    );
-    if (!savedFilterId) {
-      queueMicrotask(() => setActiveSavedFilterId(null));
-      return;
-    }
-    const savedFilter = savedFilters.find((item) => item.id === savedFilterId);
+    if (!savedFilters || restoredSavedFilterRef.current) return;
+    restoredSavedFilterRef.current = true;
+    if (hasFilterParams(searchParams)) return;
+    const storedId = localStorage.getItem(savedFilterStorageKey(projectId));
+    if (!storedId) return;
+    const savedFilter = savedFilters.find((item) => item.id === storedId);
     if (!savedFilter) {
       localStorage.removeItem(savedFilterStorageKey(projectId));
-      queueMicrotask(() => setActiveSavedFilterId(null));
       return;
     }
-    queueMicrotask(() => {
-      setActiveSavedFilterId(savedFilter.id);
-      setFilters(normalizeSavedFilters(savedFilter.filters));
-    });
-  }, [projectId, savedFilters]);
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (
-        filtersRef.current &&
-        !filtersRef.current.contains(event.target as Node)
-      ) {
-        setOpenFilter(null);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
-  const toggleStatusFilter = (status: TaskStatus) => {
-    const next = selectedStatuses.includes(status)
-      ? selectedStatuses.filter((value) => value !== status)
-      : [...selectedStatuses, status];
-    setFilters({ ...filters, statuses: next.length ? next : undefined });
-  };
-  const togglePriorityFilter = (priority: TaskPriority) => {
-    const next = selectedPriorities.includes(priority)
-      ? selectedPriorities.filter((value) => value !== priority)
-      : [...selectedPriorities, priority];
-    setFilters({ ...filters, priorities: next.length ? next : undefined });
-  };
-  const toggleTypeFilter = (type: TaskType) => {
-    const next = selectedTypes.includes(type)
-      ? selectedTypes.filter((value) => value !== type)
-      : [...selectedTypes, type];
-    setFilters({ ...filters, types: next.length ? next : undefined });
-  };
-  const toggleAssigneeFilter = (userId: string) => {
-    const next = selectedAssigneeIds.includes(userId)
-      ? selectedAssigneeIds.filter((id) => id !== userId)
-      : [...selectedAssigneeIds, userId];
+    setSearchParams(
+      (current) =>
+        paramsWithFilters(
+          current,
+          normalizeSavedFilters(savedFilter.filters),
+          savedFilter.id,
+        ),
+      { replace: true },
+    );
+  }, [savedFilters, searchParams, setSearchParams, projectId]);
+  useClickOutside(filtersRef, () => {
+    setOpenFilter(null);
+  });
+  type ListFilterKey =
+    | "statuses"
+    | "priorities"
+    | "types"
+    | "assigneeIds"
+    | "milestoneIds";
+  const toggleFilterValue = (key: ListFilterKey, value: string) => {
+    const next = toggleValue<string>(filters[key], value);
     setFilters({
       ...filters,
-      assigneeIds: next.length ? next : undefined,
-      unassigned: next.length ? false : filters.unassigned,
-    });
-  };
-  const toggleMilestoneFilter = (milestoneId: string) => {
-    const next = selectedMilestoneIds.includes(milestoneId)
-      ? selectedMilestoneIds.filter((id) => id !== milestoneId)
-      : [...selectedMilestoneIds, milestoneId];
-    setFilters({
-      ...filters,
-      milestoneIds: next.length ? next : undefined,
-      withoutMilestone: next.length ? false : filters.withoutMilestone,
+      [key]: next,
+      // Picking assignees/milestones replaces the "without" option.
+      ...(key === "assigneeIds" && next ? { unassigned: false } : {}),
+      ...(key === "milestoneIds" && next ? { withoutMilestone: false } : {}),
     });
   };
   const createSavedFilter = useMutation({
@@ -4290,7 +4158,7 @@ export function ProjectPage() {
       }),
     onSuccess: (savedFilter) => {
       invalidateSavedFilters();
-      setActiveSavedFilterId(savedFilter.id);
+      setFilters(filters, savedFilter.id);
       localStorage.setItem(savedFilterStorageKey(projectId), savedFilter.id);
       setSaveFilterOpen(false);
       setSaveFilterName("");
@@ -4307,12 +4175,8 @@ export function ProjectPage() {
           : {}),
       });
     },
-    onSuccess: (savedFilter) => {
+    onSuccess: () => {
       invalidateSavedFilters();
-      if (activeSavedFilterId === savedFilter.id) {
-        setActiveSavedFilterId(savedFilter.id);
-        localStorage.setItem(savedFilterStorageKey(projectId), savedFilter.id);
-      }
       setEditFilter(undefined);
       setEditFilterName("");
       setEditFilterUsesCurrent(false);
@@ -4327,7 +4191,7 @@ export function ProjectPage() {
     onSuccess: () => {
       invalidateSavedFilters();
       if (deleteFilter?.id === activeSavedFilterId) {
-        setActiveSavedFilterId(null);
+        setFilters(filters, null);
         localStorage.removeItem(savedFilterStorageKey(projectId));
       }
       setDeleteFilter(undefined);
@@ -4355,10 +4219,7 @@ export function ProjectPage() {
         page: pageParam,
         limit: TASKS_PAGE_SIZE,
       }),
-    getNextPageParam: (lastPage) =>
-      lastPage.meta.page < lastPage.meta.totalPages
-        ? lastPage.meta.page + 1
-        : undefined,
+    getNextPageParam: nextPageParam,
   });
   const tasks = data?.pages.flatMap((page) => page.data) ?? [];
   const totalTasks = data?.pages.at(-1)?.meta.total ?? tasks.length;
@@ -4412,7 +4273,15 @@ export function ProjectPage() {
           setDraggedTaskId(null);
           setDropTarget(null);
         }}
+        role="button"
+        tabIndex={0}
         onClick={() => setSelectedTaskId(task.id)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setSelectedTaskId(task.id);
+          }
+        }}
       >
         <div>
           <span className="task-card-icon-row">
@@ -4539,14 +4408,7 @@ export function ProjectPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            setFilters(
-                              normalizeSavedFilters(savedFilter.filters),
-                            );
-                            setActiveSavedFilterId(savedFilter.id);
-                            localStorage.setItem(
-                              savedFilterStorageKey(projectId),
-                              savedFilter.id,
-                            );
+                            applySavedFilter(savedFilter);
                             setOpenFilter(null);
                           }}
                         >
@@ -4608,11 +4470,7 @@ export function ProjectPage() {
                 <button
                   type="button"
                   aria-label="Clear active saved filter"
-                  onClick={() => {
-                    setActiveSavedFilterId(null);
-                    setFilters({});
-                    localStorage.removeItem(savedFilterStorageKey(projectId));
-                  }}
+                  onClick={() => applySavedFilter(null)}
                 >
                   <X size={13} />
                 </button>
@@ -4642,7 +4500,7 @@ export function ProjectPage() {
                       <input
                         type="checkbox"
                         checked={selectedStatuses.includes(status)}
-                        onChange={() => toggleStatusFilter(status)}
+                        onChange={() => toggleFilterValue("statuses", status)}
                       />
                       <span>{statusLabel(status)}</span>
                     </label>
@@ -4676,7 +4534,9 @@ export function ProjectPage() {
                       <input
                         type="checkbox"
                         checked={selectedPriorities.includes(priority)}
-                        onChange={() => togglePriorityFilter(priority)}
+                        onChange={() =>
+                          toggleFilterValue("priorities", priority)
+                        }
                       />
                       <PriorityIcon priority={priority} />
                       <span>{humanizeConstant(priority)}</span>
@@ -4709,7 +4569,7 @@ export function ProjectPage() {
                       <input
                         type="checkbox"
                         checked={selectedTypes.includes(type)}
-                        onChange={() => toggleTypeFilter(type)}
+                        onChange={() => toggleFilterValue("types", type)}
                       />
                       <TypeIcon type={type} />
                       <span>{humanizeConstant(type)}</span>
@@ -4775,7 +4635,7 @@ export function ProjectPage() {
                             type="checkbox"
                             checked={checked}
                             onChange={() =>
-                              toggleAssigneeFilter(member.user.id)
+                              toggleFilterValue("assigneeIds", member.user.id)
                             }
                           />
                           <Avatar
@@ -4842,7 +4702,9 @@ export function ProjectPage() {
                         <input
                           type="checkbox"
                           checked={selectedMilestoneIds.includes(milestone.id)}
-                          onChange={() => toggleMilestoneFilter(milestone.id)}
+                          onChange={() =>
+                            toggleFilterValue("milestoneIds", milestone.id)
+                          }
                         />
                         <CalendarDays size={15} />
                         <span>{milestone.name}</span>

@@ -109,3 +109,125 @@ describe("ProjectPage", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("ProjectPage filters and keyboard access", () => {
+  beforeEach(() => {
+    localStorage.setItem("taskflow.refreshToken", "stored-refresh");
+  });
+
+  const recordTaskRequests = () => {
+    const requests: { projectId: string; params: URLSearchParams }[] = [];
+    server.use(
+      http.get(apiUrl("/projects/:projectId/tasks"), ({ request, params }) => {
+        requests.push({
+          projectId: String(params.projectId),
+          params: new URL(request.url).searchParams,
+        });
+        return HttpResponse.json(makePage([makeTask()]));
+      }),
+    );
+    return requests;
+  };
+
+  it("keeps the selected filters in the URL", async () => {
+    const requests = recordTaskRequests();
+    const { router } = renderApp(projectPath);
+    fireEvent.click(await screen.findByRole("button", { name: /statuses/i }));
+    fireEvent.click(screen.getByLabelText("Done"));
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?statuses=DONE"),
+    );
+    await waitFor(() =>
+      expect(requests.at(-1)?.params.get("statuses")).toBe("DONE"),
+    );
+  });
+
+  it("applies filters from a shared link", async () => {
+    const requests = recordTaskRequests();
+    renderApp(`${projectPath}?statuses=TODO,IN_PROGRESS&q=docs`);
+    await screen.findByText("Write docs");
+    expect(requests[0].params.get("statuses")).toBe("TODO,IN_PROGRESS");
+    expect(requests[0].params.get("search")).toBe("docs");
+    expect(screen.getByPlaceholderText("Search tasks")).toHaveValue("docs");
+  });
+
+  it("restores the last active saved filter when the URL has no filters", async () => {
+    localStorage.setItem("taskflow.activeSavedFilter.project-1", "saved-1");
+    server.use(
+      http.get(apiUrl("/projects/:projectId/saved-filters"), () =>
+        HttpResponse.json([
+          {
+            id: "saved-1",
+            name: "Bugs",
+            projectId: "project-1",
+            filters: { types: ["BUG"] },
+          },
+        ]),
+      ),
+    );
+    const requests = recordTaskRequests();
+    const { router } = renderApp(projectPath);
+    expect(await screen.findByText("Bugs")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?types=BUG&view=saved-1"),
+    );
+    await waitFor(() =>
+      expect(requests.at(-1)?.params.get("types")).toBe("BUG"),
+    );
+  });
+
+  it("resets page state when switching to another project", async () => {
+    localStorage.setItem("taskflow.activeSavedFilter.project-2", "saved-2");
+    server.use(
+      http.get(apiUrl("/projects/:projectId/saved-filters"), ({ params }) =>
+        HttpResponse.json(
+          params.projectId === "project-2"
+            ? [
+                {
+                  id: "saved-2",
+                  name: "High priority",
+                  projectId: "project-2",
+                  filters: { priorities: ["HIGH"] },
+                },
+              ]
+            : [],
+        ),
+      ),
+    );
+    const requests = recordTaskRequests();
+    const { router } = renderApp(projectPath);
+    await screen.findByText("Write docs");
+    await router.navigate("/workspaces/workspace-1/projects/project-2");
+    // The saved filter of project-2 is restored, which requires fresh state.
+    await waitFor(() =>
+      expect(router.state.location.search).toBe(
+        "?priorities=HIGH&view=saved-2",
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (item) =>
+            item.projectId === "project-2" &&
+            item.params.get("priorities") === "HIGH",
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("opens a task with the keyboard and closes it with Escape", async () => {
+    renderApp(projectPath);
+    const card = (await screen.findByText("Write docs")).closest("article");
+    expect(card).toHaveAttribute("tabindex", "0");
+    card!.focus();
+    fireEvent.keyDown(card!, { key: "Enter" });
+    const dialog = await screen.findByRole("dialog", { name: "Task details" });
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Task details" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(card).toHaveFocus();
+  });
+});

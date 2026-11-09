@@ -1,5 +1,9 @@
 import {
+  createContext,
+  useContext,
   useEffect,
+  useEffectEvent,
+  useId,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -121,50 +125,131 @@ export const Field = ({
     {error && <small>{error}</small>}
   </label>
 );
-export const Dialog = ({
-  open,
-  title,
-  children,
-  onClose,
-  wide = false,
-  actions,
-}: {
+type DialogProps = {
   open: boolean;
   title: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
   actions?: ReactNode;
-}) =>
-  open
-    ? createPortal(
-        <div
-          className="dialog-backdrop"
-          role="presentation"
-          onMouseDown={onClose}
+};
+export const Dialog = ({ open, ...props }: DialogProps) =>
+  open ? createPortal(<DialogPanel {...props} />, document.body) : null;
+
+// Open dialogs with their nesting depth. Only the top one (deepest, then
+// latest) reacts to Escape and Tab. Depth comes from context because a child
+// dialog's effect runs before its parent's when both mount together.
+const DialogDepth = createContext(0);
+const openDialogs: { panel: HTMLElement; depth: number }[] = [];
+const isTopDialog = (panel: HTMLElement) => {
+  const top = openDialogs.reduce<(typeof openDialogs)[number] | undefined>(
+    (current, entry) =>
+      !current || entry.depth >= current.depth ? entry : current,
+    undefined,
+  );
+  return top?.panel === panel;
+};
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
+const focusableIn = (panel: HTMLElement) =>
+  [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+    (element) => element.checkVisibility?.() ?? true,
+  );
+const keepFocusInside = (event: KeyboardEvent, panel: HTMLElement) => {
+  const items = focusableIn(panel);
+  const first = items[0];
+  const last = items.at(-1);
+  const active = document.activeElement;
+  if (!first || !last) {
+    event.preventDefault();
+    panel.focus();
+  } else if (event.shiftKey && (active === first || active === panel)) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+};
+
+/**
+ * Modal behaviour: focus moves into the dialog and is trapped there, Escape
+ * closes it (unless an inner handler called `preventDefault`), the page
+ * behind does not scroll, and focus returns to the opener on close.
+ */
+function DialogPanel({
+  title,
+  children,
+  onClose,
+  wide = false,
+  actions,
+}: Omit<DialogProps, "open">) {
+  const panelRef = useRef<HTMLElement>(null);
+  const titleId = useId();
+  const depth = useContext(DialogDepth) + 1;
+  const close = useEffectEvent(onClose);
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const entry = { panel, depth };
+    openDialogs.push(entry);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    // Respect an `autoFocus` field inside the dialog.
+    if (isTopDialog(panel) && !panel.contains(document.activeElement))
+      panel.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isTopDialog(panel) || event.defaultPrevented) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      } else if (event.key === "Tab") {
+        keepFocusInside(event, panel);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      openDialogs.splice(openDialogs.indexOf(entry), 1);
+      document.body.style.overflow = previousOverflow;
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [depth]);
+  return (
+    <DialogDepth.Provider value={depth}>
+      <div
+        className="dialog-backdrop"
+        role="presentation"
+        onMouseDown={onClose}
+      >
+        <section
+          ref={panelRef}
+          className={cn("dialog", wide && "dialog-wide")}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
+          onMouseDown={(event) => event.stopPropagation()}
         >
-          <section
-            className={cn("dialog", wide && "dialog-wide")}
-            role="dialog"
-            aria-modal="true"
-            aria-label={title}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header>
-              <h2>{title}</h2>
-              <div className="dialog-header-actions">
-                {actions}
-                <Button variant="ghost" aria-label="Close" onClick={onClose}>
-                  <X size={17} />
-                </Button>
-              </div>
-            </header>
-            {children}
-          </section>
-        </div>,
-        document.body,
-      )
-    : null;
+          <header>
+            <h2 id={titleId}>{title}</h2>
+            <div className="dialog-header-actions">
+              {actions}
+              <Button variant="ghost" aria-label="Close" onClick={onClose}>
+                <X size={17} />
+              </Button>
+            </div>
+          </header>
+          {children}
+        </section>
+      </div>
+    </DialogDepth.Provider>
+  );
+}
 export const ConfirmDialog = ({
   open,
   title = "Are you sure?",

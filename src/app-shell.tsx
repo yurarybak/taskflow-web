@@ -15,10 +15,12 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Avatar, Button, Empty, Skeleton } from "./components/ui";
 import { useAuth } from "./features/auth/auth-provider";
+import { useClickOutside } from "./hooks/use-click-outside";
+import { nextPageParam, useLoadMore } from "./hooks/use-load-more";
 import { api } from "./lib/api";
 import { keys } from "./lib/query-keys";
 import type { Notification } from "./lib/types";
@@ -51,10 +53,7 @@ function NotificationsCenter() {
       initialPageParam: 1,
       queryFn: ({ pageParam }) =>
         api.notifications({ page: pageParam, limit: 10, unreadOnly }),
-      getNextPageParam: (lastPage) =>
-        lastPage.meta.page < lastPage.meta.totalPages
-          ? lastPage.meta.page + 1
-          : undefined,
+      getNextPageParam: nextPageParam,
     });
   const refresh = () => {
     client.invalidateQueries({ queryKey: keys.notifications(unreadOnly) });
@@ -72,29 +71,15 @@ function NotificationsCenter() {
     mutationFn: (id: string) => api.removeNotification(id),
     onSuccess: refresh,
   });
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (
-        panelRef.current &&
-        !panelRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
-  useEffect(() => {
-    if (!open || !hasNextPage || !loadMoreRef.current) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && !isFetchingNextPage) {
-        fetchNextPage();
-      }
-    });
-    observer.observe(loadMoreRef.current);
-    return () => observer.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, open]);
+  useClickOutside(panelRef, () => {
+    setOpen(false);
+  });
+  useLoadMore(loadMoreRef, {
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    enabled: open,
+  });
   const notifications = data?.pages.flatMap((page) => page.data) ?? [];
   const openNotification = (notification: Notification) => {
     if (!notification.readAt) markRead.mutate(notification.id);

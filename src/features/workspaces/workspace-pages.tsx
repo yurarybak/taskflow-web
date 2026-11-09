@@ -19,8 +19,8 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Avatar,
@@ -34,6 +34,7 @@ import {
   Skeleton,
   Textarea,
 } from "../../components/ui";
+import { useClickOutside } from "../../hooks/use-click-outside";
 import { useDebouncedValue } from "../../hooks/use-debounced-value";
 import { api } from "../../lib/api";
 import { keys } from "../../lib/query-keys";
@@ -251,6 +252,7 @@ function ProjectsTab({ workspaceId }: { workspaceId: string }) {
   const [search, setSearch] = useState("");
   const [create, setCreate] = useState(false);
   const [edit, setEdit] = useState<Project>();
+  const [deleteProject, setDeleteProject] = useState<Project>();
   const debouncedSearch = useDebouncedValue(search.trim());
   const { data, isLoading } = useQuery({
     queryKey: keys.projects(workspaceId, debouncedSearch),
@@ -261,6 +263,7 @@ function ProjectsTab({ workspaceId }: { workspaceId: string }) {
     mutationFn: (id: string) => api.removeProject(workspaceId, id),
     onSuccess: () => {
       invalidate(keys.projectsAll(workspaceId));
+      setDeleteProject(undefined);
       toast.success("Project deleted");
     },
   });
@@ -328,10 +331,7 @@ function ProjectsTab({ workspaceId }: { workspaceId: string }) {
                       <Button
                         variant="ghost"
                         aria-label={`Delete ${project.name}`}
-                        onClick={() =>
-                          confirm("Delete this project and its tasks?") &&
-                          remove.mutate(project.id)
-                        }
+                        onClick={() => setDeleteProject(project)}
                       >
                         <Trash2 size={15} />
                       </Button>
@@ -366,6 +366,14 @@ function ProjectsTab({ workspaceId }: { workspaceId: string }) {
           />
         )}
       </Dialog>
+      <ConfirmDialog
+        open={!!deleteProject}
+        title="Delete project?"
+        description={`"${deleteProject?.name}" and all of its tasks will be permanently deleted.`}
+        loading={remove.isPending}
+        onConfirm={() => deleteProject && remove.mutate(deleteProject.id)}
+        onClose={() => setDeleteProject(undefined)}
+      />
     </>
   );
 }
@@ -386,9 +394,14 @@ function MembersTab({ workspaceId }: { workspaceId: string }) {
       toast.success("Member added");
     },
   });
+  const [removeMember, setRemoveMember] = useState<Member>();
   const remove = useMutation({
     mutationFn: (id: string) => api.removeMember(workspaceId, id),
-    onSuccess: refresh,
+    onSuccess: () => {
+      refresh();
+      setRemoveMember(undefined);
+      toast.success("Member removed");
+    },
   });
   const update = useMutation({
     mutationFn: ({ id, role }: { id: string; role: string }) =>
@@ -464,10 +477,8 @@ function MembersTab({ workspaceId }: { workspaceId: string }) {
                     {member.role !== "OWNER" && (
                       <Button
                         variant="ghost"
-                        onClick={() =>
-                          confirm("Remove this member?") &&
-                          remove.mutate(member.id)
-                        }
+                        aria-label={`Remove ${member.user.email}`}
+                        onClick={() => setRemoveMember(member)}
                       >
                         <Trash2 size={15} />
                       </Button>
@@ -479,6 +490,15 @@ function MembersTab({ workspaceId }: { workspaceId: string }) {
           </table>
         </div>
       )}
+      <ConfirmDialog
+        open={!!removeMember}
+        title="Remove member?"
+        description={`${removeMember ? personName(removeMember.user) : ""} will lose access to this workspace.`}
+        confirmText="Remove"
+        loading={remove.isPending}
+        onConfirm={() => removeMember && remove.mutate(removeMember.id)}
+        onClose={() => setRemoveMember(undefined)}
+      />
     </>
   );
 }
@@ -499,9 +519,14 @@ function LabelsTab({ workspaceId }: { workspaceId: string }) {
       toast.success("Label created");
     },
   });
+  const [deleteLabel, setDeleteLabel] = useState<Label>();
   const remove = useMutation({
     mutationFn: (id: string) => api.removeLabel(workspaceId, id),
-    onSuccess: refresh,
+    onSuccess: () => {
+      refresh();
+      setDeleteLabel(undefined);
+      toast.success("Label deleted");
+    },
   });
   return (
     <>
@@ -539,9 +564,8 @@ function LabelsTab({ workspaceId }: { workspaceId: string }) {
               <code>{label.color}</code>
               <Button
                 variant="ghost"
-                onClick={() =>
-                  confirm("Delete this label?") && remove.mutate(label.id)
-                }
+                aria-label={`Delete label ${label.name}`}
+                onClick={() => setDeleteLabel(label)}
               >
                 <Trash2 size={15} />
               </Button>
@@ -549,6 +573,14 @@ function LabelsTab({ workspaceId }: { workspaceId: string }) {
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={!!deleteLabel}
+        title="Delete label?"
+        description={`"${deleteLabel?.name}" will be removed from all tasks and templates.`}
+        loading={remove.isPending}
+        onConfirm={() => deleteLabel && remove.mutate(deleteLabel.id)}
+        onClose={() => setDeleteLabel(undefined)}
+      />
     </>
   );
 }
@@ -583,19 +615,9 @@ function TaskTemplateForm({
         : [...current, labelId],
     );
   };
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (
-        labelPickerRef.current &&
-        !labelPickerRef.current.contains(event.target as Node)
-      ) {
-        setLabelsOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(labelPickerRef, () => {
+    setLabelsOpen(false);
+  });
   const mutation = useMutation({
     mutationFn: () => {
       const body = {
@@ -790,19 +812,9 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     setOpenTemplateFilter(null);
     setSelectedTemplateIds([]);
   };
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (
-        templateFiltersRef.current &&
-        !templateFiltersRef.current.contains(event.target as Node)
-      ) {
-        setOpenTemplateFilter(null);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(templateFiltersRef, () => {
+    setOpenTemplateFilter(null);
+  });
   const remove = useMutation({
     mutationFn: () => {
       if (!deleteTemplate) throw new Error("No template selected");
@@ -1173,6 +1185,7 @@ export function WorkspacePage() {
   const [deleteWorkspaceOpen, setDeleteWorkspaceOpen] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
   const invalidate = useInvalidate();
+  const navigate = useNavigate();
   const { data, isLoading } = useQuery({
     queryKey: keys.workspace(workspaceId),
     queryFn: () => api.workspace(workspaceId),
@@ -1181,22 +1194,13 @@ export function WorkspacePage() {
     mutationFn: () => api.removeWorkspace(workspaceId),
     onSuccess: () => {
       invalidate(keys.workspaces);
-      location.assign("/");
+      toast.success("Workspace deleted");
+      navigate("/", { replace: true });
     },
   });
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      if (
-        actionsRef.current &&
-        !actionsRef.current.contains(event.target as Node)
-      ) {
-        setActionsOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", closeOnOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOnOutsideClick, true);
-  }, []);
+  useClickOutside(actionsRef, () => {
+    setActionsOpen(false);
+  });
   if (isLoading || !data) return <Skeleton />;
   return (
     <>

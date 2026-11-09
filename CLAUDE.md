@@ -37,7 +37,10 @@ React 19 + TypeScript SPA built with Vite. Server state goes through TanStack Qu
 - **`query-client.ts`**: `createQueryClient()` is used by `main.tsx` and the tests. Its `MutationCache.onError` shows `toast.error` for any mutation **without its own `onError`**, so don't add `onError: (e) => toast.error(e.message)` by hand; write `onError` only when a mutation needs extra error handling.
 - **`sanitize.ts`**: `sanitizeRichText()` (DOMPurify, allowlist of formatting tags, no attributes). Any HTML from the API must go through it before `dangerouslySetInnerHTML` or `innerHTML`.
 - **`query-keys.ts`**: central factory for all query keys. Use `keys.*` for queries and invalidation, never inline arrays. `keys.tasksAll`, `taskExportsAll`, `projectsAll` and `taskTemplatesAll` are prefixes that hit every filter/page variant.
-- **`src/hooks/`**: shared React hooks (`useDebouncedValue`, used for search inputs).
+- **`src/hooks/`**: shared React hooks. Use them instead of hand-written effects:
+  - `useClickOutside(ref, onOutside, enabled?)` closes popovers and menus.
+  - `useLoadMore(ref, { hasNextPage, isFetchingNextPage, fetchNextPage })` gives infinite scroll on a sentinel element. Pair it with `getNextPageParam: nextPageParam`.
+  - `useDebouncedValue` is used for search inputs.
 - **`types.ts`**: frontend DTOs that mirror the API.
 
 ### Routing and auth (`src/app.tsx`, `src/features/auth/`)
@@ -48,7 +51,8 @@ React 19 + TypeScript SPA built with Vite. Server state goes through TanStack Qu
 
 Each feature is one or two large files that hold many private components, not a folder of small modules:
 
-- **`tasks/project-page.tsx`** (~5k lines): `ProjectPage` with board/list views, HTML5 drag-and-drop status changes, filters and saved filters, and `TaskModal` (comments with mentions, checklist, history, worklogs/time tracking, attachments, watchers, reminders, milestones), plus task export dialogs. Find a component with grep on `^function <Name>`.
+- **`tasks/project-page.tsx`** (~5k lines): `ProjectPage` (renders `ProjectBoard` keyed by `projectId`, so all page state resets when switching projects) with board/list views, HTML5 drag-and-drop status changes, filters and saved filters, and `TaskModal` (comments with mentions, checklist, history, worklogs/time tracking, attachments, watchers, reminders, milestones), plus task export dialogs. Find a component with grep on `^function <Name>`.
+- **`tasks/task-filters.ts`**: pure task-filter helpers (validation, `cleanTaskFilters`, `toggleValue`) and the URL format (`filtersFromParams` / `paramsWithFilters`).
 - **`workspaces/workspace-pages.tsx`**: the workspaces list, plus a workspace page with Projects, Members, Labels and Task Templates tabs.
 - **`profile/`** and **`auth/`**: auth forms use react-hook-form with zod (`zodResolver`). Most other forms use local `useState`.
 
@@ -59,12 +63,13 @@ The project task list is a `useInfiniteQuery` with pages of 100 (`TASKS_PAGE_SIZ
 ### UI and styling
 
 - `src/components/ui.tsx` holds the shared primitives (`Button`, `Input`, `Select`, `Dialog`, `ConfirmDialog`, `Field`, `Badge`, `Avatar`, `Empty`, `Skeleton`, `RichTextEditor`). Use `cn()` from `lib/utils.ts` for class merging.
+- `Dialog` handles modal behaviour itself: focus moves in and is trapped, Escape closes only the innermost dialog, page scroll is locked, and focus returns to the opener. An inner element can keep Escape for itself by calling `event.preventDefault()` (the task title input does this to cancel editing). Ask for confirmation with `ConfirmDialog`, never `window.confirm`.
 - Tailwind v4 is imported in `styles.css`, but components are styled mostly with **hand-written semantic CSS classes** (`.button-primary`, `.dialog`, `.board-column`, and so on). Those classes live in `src/styles.css` (minified, single line) and per-area CSS files (`task-modal.css`, `milestones.css`, …). All CSS files are imported globally in `src/main.tsx`, so a new CSS file has to be added there. Follow the existing class-based approach rather than switching to utility classes.
 
 ### Domain notes
 
 - Estimates are shown and entered as `2w 4d 6h 45m` and sent to the API as `originalEstimateMinutes`, with `1w = 5d` and `1d = 8h` (`ESTIMATE_MINUTES` in `project-page.tsx`).
-- The active saved filter is remembered per project in `localStorage` (`savedFilterStorageKey(projectId)`).
+- Project task filters live in the URL (`?q=…&statuses=TODO,DONE&assignees=…&unassigned=1&view=<savedFilterId>`), so filtered views can be shared. The last active saved filter is also remembered per project in `localStorage` (`savedFilterStorageKey(projectId)`) and restored when the project opens without filter params.
 - `PATCH /projects/:projectId/tasks/:id/milestone` is expected to return the updated task.
 
 ### Tests
