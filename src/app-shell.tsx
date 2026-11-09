@@ -19,7 +19,7 @@ import { Suspense, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Avatar, Button, Empty, Skeleton } from "./components/ui";
 import { useAuth } from "./features/auth/auth-provider";
-import { useClickOutside } from "./hooks/use-click-outside";
+import { useDismiss } from "./hooks/use-dismiss";
 import { nextPageParam, useLoadMore } from "./hooks/use-load-more";
 import { api } from "./lib/api";
 import { keys } from "./lib/query-keys";
@@ -71,9 +71,7 @@ function NotificationsCenter() {
     mutationFn: (id: string) => api.removeNotification(id),
     onSuccess: refresh,
   });
-  useClickOutside(panelRef, () => {
-    setOpen(false);
-  });
+  useDismiss(panelRef, () => setOpen(false), open);
   useLoadMore(loadMoreRef, {
     hasNextPage,
     isFetchingNextPage,

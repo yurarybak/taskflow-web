@@ -34,7 +34,7 @@ import {
   Skeleton,
 } from "../../components/ui";
 import { api } from "../../lib/api";
-import { useClickOutside } from "../../hooks/use-click-outside";
+import { useDismiss } from "../../hooks/use-dismiss";
 import { useDebouncedValue } from "../../hooks/use-debounced-value";
 import { nextPageParam } from "../../hooks/use-load-more";
 import {
@@ -188,9 +188,7 @@ function ProjectBoard() {
       { replace: true },
     );
   }, [savedFilters, searchParams, setSearchParams, projectId]);
-  useClickOutside(filtersRef, () => {
-    setOpenFilter(null);
-  });
+  useDismiss(filtersRef, () => setOpenFilter(null), openFilter !== null);
   type ListFilterKey =
     | "statuses"
     | "priorities"

@@ -12,6 +12,7 @@ import {
 import { RichTextEditor } from "../../../components/rich-text-editor";
 import { api } from "../../../lib/api";
 import { useClickOutside } from "../../../hooks/use-click-outside";
+import { useDismiss } from "../../../hooks/use-dismiss";
 import { useAuth } from "../../auth/auth-provider";
 import { statuses } from "../task-filters";
 import { keys } from "../../../lib/query-keys";
@@ -289,9 +290,7 @@ export function TaskModal({
     (member) =>
       member.userId === currentUser?.id || member.user.id === currentUser?.id,
   );
-  useClickOutside(actionsRef, () => {
-    setActionsOpen(false);
-  });
+  useDismiss(actionsRef, () => setActionsOpen(false), actionsOpen);
   return (
     <Dialog
       open

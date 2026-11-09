@@ -812,3 +812,17 @@
 .type-icon-task {
   color: #3b82f6;
 }
+
+/* Attachment names are download buttons styled like the former links. */
+.attachment .attachment-download {
+  gap: 5px;
+  min-height: 0;
+  padding: 2px 4px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.attachment .attachment-download:hover {
+  text-decoration: underline;
+}

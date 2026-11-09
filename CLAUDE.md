@@ -37,7 +37,7 @@ React 19 + TypeScript SPA built with Vite. Server state goes through TanStack Qu
 - **`api.ts`**: the single typed REST adapter. Every backend call is a method on the exported `api` object. Components never call `fetch` directly.
   - `fetchWithAuth()` attaches the bearer token. On a 401 it calls `refreshOnce()` (one shared refresh, so concurrent 401s and the StrictMode double bootstrap refresh once) and retries the request once. Non-OK responses throw `ApiError(status, message)`, joining NestJS-style `message` arrays. `request<T>()` parses JSON on top of it (a 204 returns `undefined`).
   - **Session expiry**: only a 401/403 from `/auth/refresh` ends the session. It clears the tokens and fires `onSessionExpired` listeners (`AuthProvider` subscribes, clears the query cache and drops the user, so `Protected` redirects to `/login`). Network and 5xx errors are thrown and keep the refresh token.
-  - `requestBlob()` is the file-download variant (task CSV exports) and reads the filename from `Content-Disposition`.
+  - `requestBlob(path, fallbackName)` is the authenticated file-download variant (task CSV exports, attachments). It reads the filename from `Content-Disposition`. Protected files are never linked with a plain `<a href>`, since that sends no bearer token: download them with `requestBlob` + `saveBlobFile`.
   - **Response normalization**: list endpoints may return either a bare array or `Page<T>` (`{data, meta}`). `normalizePage` / `normalizeList` turn either into one shape, and `normalizeTask` defaults `labels` to `[]`. `normalizeUser` keeps only known `User` fields, because `/users/me` also returns the password hash. New list/task/user endpoints should go through these helpers.
   - `query()` builds query strings: arrays are comma-joined, and `undefined`, `""` and `false` are dropped.
 - **`token-storage.ts`**: the access token lives only in memory. The refresh token is in `localStorage` (`taskflow.refreshToken`). On page load, `AuthProvider` calls `api.bootstrap()`, which refreshes the session and returns the user from the refresh response (`/auth/me` is not used: it only returns `id` and `email`). Login, register and logout all call `queryClient.clear()` so no cached data crosses sessions.
@@ -46,7 +46,8 @@ React 19 + TypeScript SPA built with Vite. Server state goes through TanStack Qu
 - **`sanitize.ts`**: `sanitizeRichText()` (DOMPurify, allowlist of formatting tags, no attributes). Any HTML from the API must go through it before `dangerouslySetInnerHTML` or `innerHTML`.
 - **`query-keys.ts`**: central factory for all query keys. Use `keys.*` for queries and invalidation, never inline arrays. `keys.tasksAll`, `taskExportsAll`, `projectsAll` and `taskTemplatesAll` are prefixes that hit every filter/page variant.
 - **`src/hooks/`**: shared React hooks. Use them instead of hand-written effects:
-  - `useClickOutside(ref, onOutside, enabled?)` closes popovers and menus.
+  - `useDismiss(ref, onClose, open)` is for every popover, dropdown and menu. It closes on a click outside or on Escape, returns focus to the trigger, and stops Escape from also closing a surrounding `Dialog`. Pass the real open state, because only an open popover takes Escape.
+  - `useClickOutside(ref, onOutside, enabled?)` is the click-only building block (e.g. the inline title editor, whose input handles Escape itself).
   - `useLoadMore(ref, { hasNextPage, isFetchingNextPage, fetchNextPage })` gives infinite scroll on a sentinel element. Pair it with `getNextPageParam: nextPageParam`.
   - `useDebouncedValue` is used for search inputs.
 - **`types.ts`**: frontend DTOs that mirror the API.

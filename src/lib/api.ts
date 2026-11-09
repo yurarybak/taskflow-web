@@ -144,13 +144,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
-async function requestBlob(path: string, init: RequestInit = {}) {
-  const response = await fetchWithAuth(path, init);
+/** Authenticated file download; the name comes from `Content-Disposition`. */
+async function requestBlob(path: string, fallbackFileName: string) {
+  const response = await fetchWithAuth(path);
   const disposition = response.headers.get("Content-Disposition") || "";
   const fileName =
     disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1] ||
     disposition.match(/filename="?([^"]+)"?/i)?.[1] ||
-    "taskflow-tasks.csv";
+    fallbackFileName;
   return {
     blob: await response.blob(),
     fileName: decodeURIComponent(fileName),
@@ -512,7 +513,10 @@ export const api = {
       method: "PATCH",
     }),
   downloadTaskExport: (projectId: string, id: string) =>
-    requestBlob(`/projects/${projectId}/task-exports/${id}/download`),
+    requestBlob(
+      `/projects/${projectId}/task-exports/${id}/download`,
+      "taskflow-tasks.csv",
+    ),
   task: async (projectId: string, id: string) =>
     normalizeTask(await request<Task>(`/projects/${projectId}/tasks/${id}`)),
   createTask: async (projectId: string, body: Partial<Task>) =>
@@ -805,7 +809,12 @@ export const api = {
     request<{ success: boolean }>(`/tasks/${taskId}/attachments/${id}`, {
       method: "DELETE",
     }),
-  attachmentUrl: (taskId: string, id: string) =>
-    `${API_URL}/tasks/${taskId}/attachments/${id}/download`,
+  // The download endpoint requires the bearer token, so attachments are
+  // fetched as a blob instead of being linked directly.
+  downloadAttachment: (taskId: string, attachment: Attachment) =>
+    requestBlob(
+      `/tasks/${taskId}/attachments/${attachment.id}/download`,
+      attachment.originalName,
+    ),
 };
 // TODO: Prefer HttpOnly refresh cookies after the backend contract supports them.

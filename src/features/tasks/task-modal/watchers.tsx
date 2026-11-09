@@ -3,7 +3,7 @@ import { Eye, Plus, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { Avatar, Button } from "../../../components/ui";
 import { api } from "../../../lib/api";
-import { useClickOutside } from "../../../hooks/use-click-outside";
+import { useDismiss } from "../../../hooks/use-dismiss";
 import { keys } from "../../../lib/query-keys";
 import { initials, personName } from "../../../lib/utils";
 import type { Member, TaskWatcher, User } from "../../../lib/types";
@@ -59,10 +59,14 @@ export function WatchersPopover({
     mutationFn: (userId: string) => api.removeWatcher(taskId, userId),
     onSuccess: refresh,
   });
-  useClickOutside(ref, () => {
-    setOpen(false);
-    setAdding(false);
-  });
+  useDismiss(
+    ref,
+    () => {
+      setOpen(false);
+      setAdding(false);
+    },
+    open,
+  );
   return (
     <div className="watchers-menu" ref={ref}>
       <Button

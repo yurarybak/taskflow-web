@@ -34,7 +34,7 @@ import {
   Skeleton,
   Textarea,
 } from "../../components/ui";
-import { useClickOutside } from "../../hooks/use-click-outside";
+import { useDismiss } from "../../hooks/use-dismiss";
 import { useDebouncedValue } from "../../hooks/use-debounced-value";
 import { api } from "../../lib/api";
 import { keys } from "../../lib/query-keys";
@@ -615,9 +615,7 @@ function TaskTemplateForm({
         : [...current, labelId],
     );
   };
-  useClickOutside(labelPickerRef, () => {
-    setLabelsOpen(false);
-  });
+  useDismiss(labelPickerRef, () => setLabelsOpen(false), labelsOpen);
   const mutation = useMutation({
     mutationFn: () => {
       const body = {
@@ -812,9 +810,11 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     setOpenTemplateFilter(null);
     setSelectedTemplateIds([]);
   };
-  useClickOutside(templateFiltersRef, () => {
-    setOpenTemplateFilter(null);
-  });
+  useDismiss(
+    templateFiltersRef,
+    () => setOpenTemplateFilter(null),
+    openTemplateFilter !== null,
+  );
   const remove = useMutation({
     mutationFn: () => {
       if (!deleteTemplate) throw new Error("No template selected");
@@ -1199,9 +1199,7 @@ export function WorkspacePage() {
       void navigate("/", { replace: true });
     },
   });
-  useClickOutside(actionsRef, () => {
-    setActionsOpen(false);
-  });
+  useDismiss(actionsRef, () => setActionsOpen(false), actionsOpen);
   if (isLoading || !data) return <Skeleton />;
   return (
     <>

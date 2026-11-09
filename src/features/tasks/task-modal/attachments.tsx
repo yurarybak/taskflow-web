@@ -6,6 +6,20 @@ import { Button, ConfirmDialog } from "../../../components/ui";
 import { api } from "../../../lib/api";
 import { keys } from "../../../lib/query-keys";
 import type { Attachment } from "../../../lib/types";
+import { saveBlobFile } from "../task-utils";
+
+// Mirrors the API's upload allowlist so a wrong file fails before uploading.
+export const ATTACHMENT_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "text/plain",
+  "application/zip",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
+const ATTACHMENT_TYPES_HINT = "PDF, JPEG, PNG, WebP, TXT, ZIP, DOCX or XLSX";
 
 export function Attachments({ taskId }: { taskId: string }) {
   const client = useQueryClient();
@@ -26,8 +40,27 @@ export function Attachments({ taskId }: { taskId: string }) {
   });
   const upload = useMutation({
     mutationFn: (file: File) => api.uploadAttachment(taskId, file),
-    onSuccess: refresh,
+    onSuccess: () => {
+      void refresh();
+      toast.success("Attachment uploaded");
+    },
   });
+  const download = useMutation({
+    mutationFn: async (attachment: Attachment) => {
+      const { blob, fileName } = await api.downloadAttachment(
+        taskId,
+        attachment,
+      );
+      saveBlobFile(blob, fileName);
+    },
+  });
+  const uploadFile = (file: File) => {
+    if (!ATTACHMENT_TYPES.includes(file.type)) {
+      toast.error(`Upload a ${ATTACHMENT_TYPES_HINT} file.`);
+      return;
+    }
+    upload.mutate(file);
+  };
   return (
     <section>
       <h3>
@@ -36,9 +69,15 @@ export function Attachments({ taskId }: { taskId: string }) {
       <div className="attachment-list">
         {data?.map((file) => (
           <div className="attachment" key={file.id}>
-            <a href={api.attachmentUrl(taskId, file.id)}>
+            <Button
+              variant="ghost"
+              className="attachment-download"
+              aria-label={`Download ${file.originalName}`}
+              loading={download.isPending && download.variables.id === file.id}
+              onClick={() => download.mutate(file)}
+            >
               <Download size={14} /> {file.originalName}
-            </a>
+            </Button>
             <small>{Math.ceil(file.size / 1024)} KB</small>
             <Button
               variant="ghost"
@@ -59,12 +98,17 @@ export function Attachments({ taskId }: { taskId: string }) {
         onClose={() => setDeleteAttachment(undefined)}
       />
       <label className="upload">
-        <FileUp size={15} /> Upload file
+        <FileUp size={15} /> {upload.isPending ? "Uploading..." : "Upload file"}
         <input
           type="file"
-          onChange={(e) =>
-            e.target.files?.[0] && upload.mutate(e.target.files[0])
-          }
+          accept={ATTACHMENT_TYPES.join(",")}
+          disabled={upload.isPending}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            // Reset so picking the same file again still triggers onChange.
+            event.currentTarget.value = "";
+            if (file) uploadFile(file);
+          }}
         />
       </label>
     </section>

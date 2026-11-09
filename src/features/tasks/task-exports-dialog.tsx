@@ -19,7 +19,7 @@ import {
   Skeleton,
 } from "../../components/ui";
 import { api } from "../../lib/api";
-import { useClickOutside } from "../../hooks/use-click-outside";
+import { useDismiss } from "../../hooks/use-dismiss";
 import {
   cleanTaskExportFilters,
   exportFiltersFromTaskFilters,
@@ -98,9 +98,11 @@ export function TaskExportsDialog({
   });
   const invalidate = () =>
     client.invalidateQueries({ queryKey: keys.taskExportsAll(projectId) });
-  useClickOutside(exportFiltersRef, () => {
-    setOpenExportFilter(null);
-  });
+  useDismiss(
+    exportFiltersRef,
+    () => setOpenExportFilter(null),
+    openExportFilter !== null,
+  );
   const toggleExportArrayValue = (
     key:
       | "statuses"

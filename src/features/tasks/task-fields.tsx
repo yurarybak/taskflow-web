@@ -13,7 +13,7 @@ import {
 import { type ReactNode, useRef, useState } from "react";
 import { Avatar } from "../../components/ui";
 import { api } from "../../lib/api";
-import { useClickOutside } from "../../hooks/use-click-outside";
+import { useDismiss } from "../../hooks/use-dismiss";
 import { priorities, types } from "./task-filters";
 import { initials, personName } from "../../lib/utils";
 import type {
@@ -90,9 +90,7 @@ export function PriorityDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useClickOutside(ref, () => {
-    setOpen(false);
-  });
+  useDismiss(ref, () => setOpen(false), open);
   return (
     <div className="priority-dropdown" ref={ref}>
       <button
@@ -148,9 +146,7 @@ export function TypeDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  useClickOutside(ref, () => {
-    setOpen(false);
-  });
+  useDismiss(ref, () => setOpen(false), open);
   return (
     <div className="type-dropdown" ref={ref}>
       <button
@@ -202,9 +198,7 @@ export function UserDropdown({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = findUserById(members, value);
-  useClickOutside(ref, () => {
-    setOpen(false);
-  });
+  useDismiss(ref, () => setOpen(false), open);
   return (
     <div className="user-dropdown" ref={ref}>
       <button
@@ -279,9 +273,7 @@ export function MilestoneDropdown({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const selected = findMilestoneById(milestones, value);
-  useClickOutside(ref, () => {
-    setOpen(false);
-  });
+  useDismiss(ref, () => setOpen(false), open);
   return (
     <div className="user-dropdown milestone-dropdown" ref={ref}>
       <button
