@@ -63,7 +63,8 @@ Every page is code-split with `React.lazy` in `app.tsx`. Signed-in pages suspend
 A feature is a folder of focused modules. One component, or a few tightly related ones, per file. Pure helpers live in `.ts` files next to them. Modules export only what other modules use.
 
 - **`tasks/`**:
-  - `project-page.tsx`: `ProjectPage` (renders `ProjectBoard` keyed by `projectId`, so all page state resets when switching projects) with board/list views, HTML5 drag-and-drop status changes, and filters and saved filters.
+  - `project-page.tsx`: `ProjectPage` (renders `ProjectBoard` keyed by `projectId`, so all page state resets when switching projects) with board/list views, HTML5 drag-and-drop status changes, pagination and the task modal.
+  - `use-task-filters.ts`: `useTaskFilters(projectId)` holds the URL-backed filters, the saved filters query, `applySavedFilter`, `toggleFilterValue` and the localStorage restore. `task-filters-bar.tsx`: `TaskFiltersBar` (search, saved filters with their create/edit/delete dialogs, the filter popovers). It receives that state as `filterState`, and `children` render at the end of the toolbar (the board/list switch).
   - `task-modal/`: `task-modal.tsx` (`TaskModal`) plus one file per section: `comments`, `checklist`, `history`, `worklogs` (time tracking dialog, worklog list/edit), `attachments`, `reminders`, `watchers`.
   - `task-form.tsx` (create/edit task, from templates), `milestones.tsx` (milestones tab), `task-exports-dialog.tsx`.
   - `task-fields.tsx`: shared field controls (date picker, priority/type/user/milestone dropdowns, collapsible section). `mentions.tsx`: mention parsing/rendering and `MentionTextarea`.
@@ -94,4 +95,4 @@ Tests live next to the code (`*.test.ts` / `*.test.tsx`).
 
 - **`lib/` unit tests** stub the global `fetch` with `vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(...)))`.
 - **Component tests** render the real route tree with `renderApp(path)` from `src/test/render.tsx` (memory router, fresh `QueryClient`, `AuthProvider`). The backend is mocked with msw: `src/test/server.ts` holds default handlers for a signed-in user with one workspace, project and task, and a test overrides an endpoint with `server.use(http.get(apiUrl("/..."), ...))`. Unhandled requests fail the test. Fixture builders are in `src/test/fixtures.ts`. To start signed in, put a refresh token in `localStorage` (`taskflow.refreshToken`) before rendering.
-- `src/test/setup.ts` loads the jest-dom matchers, starts msw and, after each test, runs RTL `cleanup`, resets handlers and clears tokens and `localStorage`. The test API URL is pinned to `http://localhost:3000` in `vite.config.ts`.
+- `src/test/setup.ts` loads the jest-dom matchers, starts msw and, after each test, runs RTL `cleanup`, resets handlers and clears tokens and `localStorage`. The test API URL is pinned to `http://localhost:3000` in `vite.config.ts`. Async RTL queries wait up to 5s (`asyncUtilTimeout`) and a test may take 15s (`testTimeout`), because component tests render lazy-loaded pages.

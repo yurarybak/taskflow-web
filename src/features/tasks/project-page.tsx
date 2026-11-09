@@ -9,60 +9,31 @@ import { format } from "date-fns";
 import {
   CalendarDays,
   CheckSquare2,
-  ChevronDown,
   Download,
-  Edit3,
   Flag,
   List,
   Plus,
-  Search,
-  Trash2,
-  Users,
-  X,
 } from "lucide-react";
-import { type DragEvent, useEffect, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { type DragEvent, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Avatar,
   Badge,
   Button,
-  ConfirmDialog,
   Dialog,
   Empty,
-  Field,
-  Input,
   Skeleton,
 } from "../../components/ui";
 import { api } from "../../lib/api";
-import { useDismiss } from "../../hooks/use-dismiss";
+
 import { useDebouncedValue } from "../../hooks/use-debounced-value";
 import { nextPageParam } from "../../hooks/use-load-more";
-import {
-  cleanTaskFilters,
-  comparableFilters,
-  filtersFromParams,
-  hasFilterParams,
-  normalizeSavedFilters,
-  paramsWithFilters,
-  priorities,
-  savedFilterIdFromParams,
-  savedFilterStorageKey,
-  statuses,
-  taskFiltersRecord,
-  toggleValue,
-  types,
-} from "./task-filters";
+import { cleanTaskFilters, statuses } from "./task-filters";
 import { errorMessage } from "../../lib/query-client";
 import { keys } from "../../lib/query-keys";
 import { initials, personName } from "../../lib/utils";
-import type {
-  Page,
-  SavedTaskFilter,
-  Task,
-  TaskFilters,
-  TaskStatus,
-} from "../../lib/types";
+import type { Page, Task, TaskStatus } from "../../lib/types";
 import {
   findAssignee,
   humanizeConstant,
@@ -74,6 +45,8 @@ import { MilestonesTab } from "./milestones";
 import { TaskForm } from "./task-form";
 import { TaskExportsDialog } from "./task-exports-dialog";
 import { TaskModal } from "./task-modal/task-modal";
+import { TaskFiltersBar } from "./task-filters-bar";
+import { useTaskFilters } from "./use-task-filters";
 
 // The API rejects page sizes above 100.
 const TASKS_PAGE_SIZE = 100;
@@ -85,51 +58,15 @@ export function ProjectPage() {
 function ProjectBoard() {
   const { workspaceId = "", projectId = "" } = useParams();
   const client = useQueryClient();
-  const filtersRef = useRef<HTMLDivElement>(null);
   const [create, setCreate] = useState(false);
   const [exportsOpen, setExportsOpen] = useState(false);
   const [projectTab, setProjectTab] = useState<"tasks" | "milestones">("tasks");
   const [view, setView] = useState<"list" | "board">("board");
-  // Filters and the active saved filter live in the URL, so a filtered view
-  // can be shared and survives a reload.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const filters = filtersFromParams(searchParams);
-  const activeSavedFilterId = savedFilterIdFromParams(searchParams);
-  const setFilters = (
-    next: TaskFilters,
-    savedFilterId: string | null = activeSavedFilterId,
-  ) =>
-    setSearchParams(
-      (current) => paramsWithFilters(current, next, savedFilterId),
-      { replace: true },
-    );
-  const applySavedFilter = (savedFilter: SavedTaskFilter | null) => {
-    setFilters(
-      savedFilter ? normalizeSavedFilters(savedFilter.filters) : {},
-      savedFilter?.id ?? null,
-    );
-    if (savedFilter)
-      localStorage.setItem(savedFilterStorageKey(projectId), savedFilter.id);
-    else localStorage.removeItem(savedFilterStorageKey(projectId));
-  };
+  const taskFilters = useTaskFilters(projectId);
+  const { filters } = taskFilters;
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
-  const [saveFilterOpen, setSaveFilterOpen] = useState(false);
-  const [saveFilterName, setSaveFilterName] = useState("");
-  const [editFilter, setEditFilter] = useState<SavedTaskFilter>();
-  const [editFilterName, setEditFilterName] = useState("");
-  const [editFilterUsesCurrent, setEditFilterUsesCurrent] = useState(false);
-  const [deleteFilter, setDeleteFilter] = useState<SavedTaskFilter>();
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<TaskStatus | null>(null);
-  const [openFilter, setOpenFilter] = useState<
-    | "saved"
-    | "statuses"
-    | "priorities"
-    | "types"
-    | "assignees"
-    | "milestones"
-    | null
-  >(null);
   const { data: workspace } = useQuery({
     queryKey: keys.workspace(workspaceId),
     queryFn: () => api.workspace(workspaceId),
@@ -150,117 +87,7 @@ function ProjectBoard() {
     queryKey: keys.labels(workspaceId),
     queryFn: () => api.labels(workspaceId),
   });
-  const { data: savedFilters } = useQuery({
-    queryKey: keys.savedFilters(projectId),
-    queryFn: () => api.savedFilters(projectId),
-  });
   const project = projects?.data.find((x) => x.id === projectId);
-  const selectedStatuses = filters.statuses ?? [];
-  const selectedPriorities = filters.priorities ?? [];
-  const selectedTypes = filters.types ?? [];
-  const selectedAssigneeIds = filters.assigneeIds ?? [];
-  const selectedMilestoneIds = filters.milestoneIds ?? [];
-  const currentSavedFilters = cleanTaskFilters(filters);
-  const hasActiveFilters = Object.keys(currentSavedFilters).length > 0;
-  const activeSavedFilter = savedFilters?.find(
-    (savedFilter) => savedFilter.id === activeSavedFilterId,
-  );
-  const activeSavedFilterModified =
-    !!activeSavedFilter &&
-    comparableFilters(filters) !==
-      comparableFilters(normalizeSavedFilters(activeSavedFilter.filters));
-  const invalidateSavedFilters = () =>
-    client.invalidateQueries({ queryKey: keys.savedFilters(projectId) });
-  // Opening a project without filters in the URL restores the saved filter
-  // that was last active there (remembered in localStorage). Runs once, after
-  // the saved filters have loaded; it syncs the URL, not React state.
-  const restoredSavedFilterRef = useRef(false);
-  useEffect(() => {
-    if (!savedFilters || restoredSavedFilterRef.current) return;
-    restoredSavedFilterRef.current = true;
-    if (hasFilterParams(searchParams)) return;
-    const storedId = localStorage.getItem(savedFilterStorageKey(projectId));
-    if (!storedId) return;
-    const savedFilter = savedFilters.find((item) => item.id === storedId);
-    if (!savedFilter) {
-      localStorage.removeItem(savedFilterStorageKey(projectId));
-      return;
-    }
-    setSearchParams(
-      (current) =>
-        paramsWithFilters(
-          current,
-          normalizeSavedFilters(savedFilter.filters),
-          savedFilter.id,
-        ),
-      { replace: true },
-    );
-  }, [savedFilters, searchParams, setSearchParams, projectId]);
-  useDismiss(filtersRef, () => setOpenFilter(null), openFilter !== null);
-  type ListFilterKey =
-    | "statuses"
-    | "priorities"
-    | "types"
-    | "assigneeIds"
-    | "milestoneIds";
-  const toggleFilterValue = (key: ListFilterKey, value: string) => {
-    const next = toggleValue<string>(filters[key], value);
-    setFilters({
-      ...filters,
-      [key]: next,
-      // Picking assignees/milestones replaces the "without" option.
-      ...(key === "assigneeIds" && next ? { unassigned: false } : {}),
-      ...(key === "milestoneIds" && next ? { withoutMilestone: false } : {}),
-    });
-  };
-  const createSavedFilter = useMutation({
-    mutationFn: () =>
-      api.createSavedFilter(projectId, {
-        name: saveFilterName.trim(),
-        filters: taskFiltersRecord(currentSavedFilters),
-      }),
-    onSuccess: (savedFilter) => {
-      void invalidateSavedFilters();
-      setFilters(filters, savedFilter.id);
-      localStorage.setItem(savedFilterStorageKey(projectId), savedFilter.id);
-      setSaveFilterOpen(false);
-      setSaveFilterName("");
-      toast.success("Filter saved");
-    },
-  });
-  const updateSavedFilter = useMutation({
-    mutationFn: () => {
-      if (!editFilter) throw new Error("No filter selected");
-      return api.updateSavedFilter(projectId, editFilter.id, {
-        name: editFilterName.trim(),
-        ...(editFilterUsesCurrent
-          ? { filters: taskFiltersRecord(currentSavedFilters) }
-          : {}),
-      });
-    },
-    onSuccess: () => {
-      void invalidateSavedFilters();
-      setEditFilter(undefined);
-      setEditFilterName("");
-      setEditFilterUsesCurrent(false);
-      toast.success("Saved filter updated");
-    },
-  });
-  const removeSavedFilter = useMutation({
-    mutationFn: () => {
-      if (!deleteFilter) throw new Error("No filter selected");
-      return api.removeSavedFilter(projectId, deleteFilter.id);
-    },
-    onSuccess: () => {
-      void invalidateSavedFilters();
-      if (deleteFilter?.id === activeSavedFilterId) {
-        setFilters(filters, null);
-        localStorage.removeItem(savedFilterStorageKey(projectId));
-      }
-      setDeleteFilter(undefined);
-      toast.success("Saved filter deleted");
-    },
-  });
   // Typing in the search box only refetches once the user pauses.
   const debouncedSearch = useDebouncedValue(filters.search ?? "");
   const queryFilters = cleanTaskFilters({
@@ -468,344 +295,12 @@ function ProjectBoard() {
         <MilestonesTab projectId={projectId} />
       ) : (
         <>
-          <div className="toolbar task-filters" ref={filtersRef}>
-            <div className="search task-search">
-              <Search size={15} />
-              <Input
-                placeholder="Search tasks"
-                value={filters.search || ""}
-                onChange={(e) =>
-                  setFilters({ ...filters, search: e.target.value })
-                }
-              />
-            </div>
-            <div className="task-filter-popover saved-filter-popover">
-              <button
-                className="task-filter-button"
-                type="button"
-                onClick={() =>
-                  setOpenFilter(openFilter === "saved" ? null : "saved")
-                }
-              >
-                Saved filters
-                <ChevronDown size={14} />
-              </button>
-              {openFilter === "saved" && (
-                <div className="task-filter-menu saved-filter-menu">
-                  {!savedFilters?.length ? (
-                    <p>No saved filters yet</p>
-                  ) : (
-                    savedFilters.map((savedFilter) => (
-                      <div className="saved-filter-row" key={savedFilter.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            applySavedFilter(savedFilter);
-                            setOpenFilter(null);
-                          }}
-                        >
-                          {savedFilter.name}
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Edit ${savedFilter.name}`}
-                          onClick={() => {
-                            setEditFilter(savedFilter);
-                            setEditFilterName(savedFilter.name);
-                            setEditFilterUsesCurrent(false);
-                            setOpenFilter(null);
-                          }}
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Delete ${savedFilter.name}`}
-                          onClick={() => {
-                            setDeleteFilter(savedFilter);
-                            setOpenFilter(null);
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                  <div className="saved-filter-footer">
-                    <Button
-                      variant="secondary"
-                      disabled={!hasActiveFilters}
-                      onClick={() => {
-                        setSaveFilterName("");
-                        setSaveFilterOpen(true);
-                        setOpenFilter(null);
-                      }}
-                    >
-                      <Plus size={15} /> Save current filter
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-            {activeSavedFilter && (
-              <div
-                className={
-                  activeSavedFilterModified
-                    ? "active-saved-filter modified"
-                    : "active-saved-filter"
-                }
-              >
-                <span>
-                  View: <strong>{activeSavedFilter.name}</strong>
-                  {activeSavedFilterModified ? " (modified)" : ""}
-                </span>
-                <button
-                  type="button"
-                  aria-label="Clear active saved filter"
-                  onClick={() => applySavedFilter(null)}
-                >
-                  <X size={13} />
-                </button>
-              </div>
-            )}
-            <div className="task-filter-popover">
-              <button
-                className={
-                  selectedStatuses.length
-                    ? "task-filter-button active"
-                    : "task-filter-button"
-                }
-                type="button"
-                onClick={() =>
-                  setOpenFilter(openFilter === "statuses" ? null : "statuses")
-                }
-              >
-                {selectedStatuses.length
-                  ? `${selectedStatuses.length} status${selectedStatuses.length > 1 ? "es" : ""}`
-                  : "Statuses"}
-                <ChevronDown size={14} />
-              </button>
-              {openFilter === "statuses" && (
-                <div className="task-filter-menu compact">
-                  {statuses.map((status) => (
-                    <label className="task-filter-option" key={status}>
-                      <input
-                        type="checkbox"
-                        checked={selectedStatuses.includes(status)}
-                        onChange={() => toggleFilterValue("statuses", status)}
-                      />
-                      <span>{statusLabel(status)}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="task-filter-popover">
-              <button
-                className={
-                  selectedPriorities.length
-                    ? "task-filter-button active"
-                    : "task-filter-button"
-                }
-                type="button"
-                onClick={() =>
-                  setOpenFilter(
-                    openFilter === "priorities" ? null : "priorities",
-                  )
-                }
-              >
-                {selectedPriorities.length
-                  ? `${selectedPriorities.length} priorit${selectedPriorities.length > 1 ? "ies" : "y"}`
-                  : "Priorities"}
-                <ChevronDown size={14} />
-              </button>
-              {openFilter === "priorities" && (
-                <div className="task-filter-menu compact">
-                  {priorities.map((priority) => (
-                    <label className="task-filter-option" key={priority}>
-                      <input
-                        type="checkbox"
-                        checked={selectedPriorities.includes(priority)}
-                        onChange={() =>
-                          toggleFilterValue("priorities", priority)
-                        }
-                      />
-                      <PriorityIcon priority={priority} />
-                      <span>{humanizeConstant(priority)}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="task-filter-popover">
-              <button
-                className={
-                  selectedTypes.length
-                    ? "task-filter-button active"
-                    : "task-filter-button"
-                }
-                type="button"
-                onClick={() =>
-                  setOpenFilter(openFilter === "types" ? null : "types")
-                }
-              >
-                {selectedTypes.length
-                  ? `${selectedTypes.length} type${selectedTypes.length > 1 ? "s" : ""}`
-                  : "Types"}
-                <ChevronDown size={14} />
-              </button>
-              {openFilter === "types" && (
-                <div className="task-filter-menu compact">
-                  {types.map((type) => (
-                    <label className="task-filter-option" key={type}>
-                      <input
-                        type="checkbox"
-                        checked={selectedTypes.includes(type)}
-                        onChange={() => toggleFilterValue("types", type)}
-                      />
-                      <TypeIcon type={type} />
-                      <span>{humanizeConstant(type)}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="task-filter-popover assignee-filter">
-              <button
-                className={
-                  selectedAssigneeIds.length || filters.unassigned
-                    ? "task-filter-button active"
-                    : "task-filter-button"
-                }
-                type="button"
-                onClick={() =>
-                  setOpenFilter(openFilter === "assignees" ? null : "assignees")
-                }
-              >
-                <Users size={15} />
-                {filters.unassigned
-                  ? "Unassigned"
-                  : selectedAssigneeIds.length
-                    ? `${selectedAssigneeIds.length} assignee${selectedAssigneeIds.length > 1 ? "s" : ""}`
-                    : "Assignees"}
-                <ChevronDown size={14} />
-              </button>
-              {openFilter === "assignees" && (
-                <div className="task-filter-menu assignee-filter-menu">
-                  <label className="task-filter-option assignee-filter-option">
-                    <input
-                      type="checkbox"
-                      checked={!!filters.unassigned}
-                      onChange={(event) =>
-                        setFilters({
-                          ...filters,
-                          assigneeIds: event.target.checked
-                            ? undefined
-                            : filters.assigneeIds,
-                          unassigned: event.target.checked,
-                        })
-                      }
-                    />
-                    <span className="assignee-filter-empty-avatar">-</span>
-                    <span>
-                      <strong>Unassigned</strong>
-                    </span>
-                  </label>
-                  {!members?.length ? (
-                    <p>No members yet</p>
-                  ) : (
-                    members.map((member) => {
-                      const checked = selectedAssigneeIds.includes(
-                        member.user.id,
-                      );
-                      return (
-                        <label
-                          className="task-filter-option assignee-filter-option"
-                          key={member.id}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              toggleFilterValue("assigneeIds", member.user.id)
-                            }
-                          />
-                          <Avatar
-                            label={initials(member.user)}
-                            src={api.avatarUrl(member.user.id)}
-                          />
-                          <span>
-                            <strong>{personName(member.user)}</strong>
-                            <small>{member.user.email}</small>
-                          </span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="task-filter-popover milestone-filter">
-              <button
-                className={
-                  selectedMilestoneIds.length || filters.withoutMilestone
-                    ? "task-filter-button active"
-                    : "task-filter-button"
-                }
-                type="button"
-                onClick={() =>
-                  setOpenFilter(
-                    openFilter === "milestones" ? null : "milestones",
-                  )
-                }
-              >
-                <CalendarDays size={15} />
-                {filters.withoutMilestone
-                  ? "Without milestone"
-                  : selectedMilestoneIds.length
-                    ? `${selectedMilestoneIds.length} milestone${selectedMilestoneIds.length > 1 ? "s" : ""}`
-                    : "Milestones"}
-                <ChevronDown size={14} />
-              </button>
-              {openFilter === "milestones" && (
-                <div className="task-filter-menu milestone-filter-menu">
-                  <label className="task-filter-option">
-                    <input
-                      type="checkbox"
-                      checked={!!filters.withoutMilestone}
-                      onChange={(event) =>
-                        setFilters({
-                          ...filters,
-                          milestoneIds: event.target.checked
-                            ? undefined
-                            : filters.milestoneIds,
-                          withoutMilestone: event.target.checked,
-                        })
-                      }
-                    />
-                    <CalendarDays size={15} />
-                    <span>Without milestone</span>
-                  </label>
-                  {!milestones?.length ? (
-                    <p>No milestones yet</p>
-                  ) : (
-                    milestones.map((milestone) => (
-                      <label className="task-filter-option" key={milestone.id}>
-                        <input
-                          type="checkbox"
-                          checked={selectedMilestoneIds.includes(milestone.id)}
-                          onChange={() =>
-                            toggleFilterValue("milestoneIds", milestone.id)
-                          }
-                        />
-                        <CalendarDays size={15} />
-                        <span>{milestone.name}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+          <TaskFiltersBar
+            projectId={projectId}
+            filterState={taskFilters}
+            members={members}
+            milestones={milestones}
+          >
             <div className="view-switch">
               <Button
                 variant={view === "board" ? "secondary" : "ghost"}
@@ -820,7 +315,7 @@ function ProjectBoard() {
                 <List size={15} />
               </Button>
             </div>
-          </div>
+          </TaskFiltersBar>
           {isLoading ? (
             <Skeleton />
           ) : error ? (
@@ -894,108 +389,6 @@ function ProjectBoard() {
               </Button>
             </div>
           )}
-          <Dialog
-            open={saveFilterOpen}
-            title="Save current filter"
-            onClose={() => setSaveFilterOpen(false)}
-          >
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (saveFilterName.trim().length >= 2)
-                  createSavedFilter.mutate();
-              }}
-            >
-              <Field label="Name">
-                <Input
-                  value={saveFilterName}
-                  minLength={2}
-                  maxLength={80}
-                  autoFocus
-                  required
-                  onChange={(event) => setSaveFilterName(event.target.value)}
-                />
-              </Field>
-              <div className="dialog-actions">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setSaveFilterOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  loading={createSavedFilter.isPending}
-                  disabled={
-                    !hasActiveFilters || saveFilterName.trim().length < 2
-                  }
-                >
-                  Save filter
-                </Button>
-              </div>
-            </form>
-          </Dialog>
-          <Dialog
-            open={!!editFilter}
-            title="Edit saved filter"
-            onClose={() => setEditFilter(undefined)}
-          >
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (editFilterName.trim().length >= 2)
-                  updateSavedFilter.mutate();
-              }}
-            >
-              <Field label="Name">
-                <Input
-                  value={editFilterName}
-                  minLength={2}
-                  maxLength={80}
-                  autoFocus
-                  required
-                  onChange={(event) => setEditFilterName(event.target.value)}
-                />
-              </Field>
-              <label className="saved-filter-current-check">
-                <input
-                  type="checkbox"
-                  checked={editFilterUsesCurrent}
-                  disabled={!hasActiveFilters}
-                  onChange={(event) =>
-                    setEditFilterUsesCurrent(event.target.checked)
-                  }
-                />
-                Replace saved filters with current board filters
-              </label>
-              <div className="dialog-actions">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setEditFilter(undefined)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  loading={updateSavedFilter.isPending}
-                  disabled={editFilterName.trim().length < 2}
-                >
-                  Save changes
-                </Button>
-              </div>
-            </form>
-          </Dialog>
-          <ConfirmDialog
-            open={!!deleteFilter}
-            title="Delete saved filter?"
-            description={`Are you sure you want to delete "${
-              deleteFilter?.name || "this filter"
-            }"?`}
-            confirmText="Delete filter"
-            loading={removeSavedFilter.isPending}
-            onClose={() => setDeleteFilter(undefined)}
-            onConfirm={() => removeSavedFilter.mutate()}
-          />
           <Dialog
             open={create}
             title="New task"

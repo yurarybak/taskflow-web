@@ -26,5 +26,9 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     // Pin the API base URL so a local .env never changes test expectations.
     env: { VITE_API_URL: "http://localhost:3000" },
+    // Component tests render whole lazy-loaded pages and may wait up to 5s in
+    // a single findBy (asyncUtilTimeout in setup.ts), so a test needs more
+    // than the default 5s budget on a busy machine or CI runner.
+    testTimeout: 15_000,
   },
 });
