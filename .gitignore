@@ -5,3 +5,5 @@ coverage
 
 # add history to ignore list
 .history
+# Claude Code local instructions
+CLAUDE.local.md
