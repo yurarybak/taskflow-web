@@ -47,12 +47,19 @@ React 19 + TypeScript SPA built with Vite. Server state goes through TanStack Qu
 
 `createBrowserRouter`. The `Protected` route waits for `useAuth().loading`, then either renders `AppShell` (sidebar, notifications) with child pages or redirects to `/login`. Public routes are login, register, forgot-password and reset-password.
 
+Every page is code-split with `React.lazy` in `app.tsx`. Signed-in pages suspend inside `AppShell` (the sidebar stays). Public pages suspend in `PublicPages` with the boot skeleton. `vite.config.ts` puts React and the router in a separate `vendor-react` chunk. Keep heavy dependencies (like DOMPurify via `components/rich-text-editor.tsx`) out of modules that the main bundle imports (`app-shell.tsx`, `components/ui.tsx`, `lib/`).
+
 ### Features (`src/features/`)
 
-Each feature is one or two large files that hold many private components, not a folder of small modules:
+A feature is a folder of focused modules. One component, or a few tightly related ones, per file. Pure helpers live in `.ts` files next to them. Modules export only what other modules use.
 
-- **`tasks/project-page.tsx`** (~5k lines): `ProjectPage` (renders `ProjectBoard` keyed by `projectId`, so all page state resets when switching projects) with board/list views, HTML5 drag-and-drop status changes, filters and saved filters, and `TaskModal` (comments with mentions, checklist, history, worklogs/time tracking, attachments, watchers, reminders, milestones), plus task export dialogs. Find a component with grep on `^function <Name>`.
-- **`tasks/task-filters.ts`**: pure task-filter helpers (validation, `cleanTaskFilters`, `toggleValue`) and the URL format (`filtersFromParams` / `paramsWithFilters`).
+- **`tasks/`**:
+  - `project-page.tsx`: `ProjectPage` (renders `ProjectBoard` keyed by `projectId`, so all page state resets when switching projects) with board/list views, HTML5 drag-and-drop status changes, and filters and saved filters.
+  - `task-modal/`: `task-modal.tsx` (`TaskModal`) plus one file per section: `comments`, `checklist`, `history`, `worklogs` (time tracking dialog, worklog list/edit), `attachments`, `reminders`, `watchers`.
+  - `task-form.tsx` (create/edit task, from templates), `milestones.tsx` (milestones tab), `task-exports-dialog.tsx`.
+  - `task-fields.tsx`: shared field controls (date picker, priority/type/user/milestone dropdowns, collapsible section). `mentions.tsx`: mention parsing/rendering and `MentionTextarea`.
+  - `task-utils.ts`: estimates (`ESTIMATE_MINUTES`, `parseEstimate`, `formatEstimate`), date input formatting, `find*` lookups, `saveBlobFile`, abortable `wait`.
+  - `task-filters.ts`: pure task-filter helpers (validation, `cleanTaskFilters`, `toggleValue`, export-filter helpers) and the URL format (`filtersFromParams` / `paramsWithFilters`).
 - **`workspaces/workspace-pages.tsx`**: the workspaces list, plus a workspace page with Projects, Members, Labels and Task Templates tabs.
 - **`profile/`** and **`auth/`**: auth forms use react-hook-form with zod (`zodResolver`). Most other forms use local `useState`.
 
@@ -62,13 +69,13 @@ The project task list is a `useInfiniteQuery` with pages of 100 (`TASKS_PAGE_SIZ
 
 ### UI and styling
 
-- `src/components/ui.tsx` holds the shared primitives (`Button`, `Input`, `Select`, `Dialog`, `ConfirmDialog`, `Field`, `Badge`, `Avatar`, `Empty`, `Skeleton`, `RichTextEditor`). Use `cn()` from `lib/utils.ts` for class merging.
+- `src/components/ui.tsx` holds the shared primitives (`Button`, `Input`, `Select`, `Dialog`, `ConfirmDialog`, `Field`, `Badge`, `Avatar`, `Empty`, `Skeleton`). `RichTextEditor` is in `components/rich-text-editor.tsx`. Use `cn()` from `lib/utils.ts` for class merging.
 - `Dialog` handles modal behaviour itself: focus moves in and is trapped, Escape closes only the innermost dialog, page scroll is locked, and focus returns to the opener. An inner element can keep Escape for itself by calling `event.preventDefault()` (the task title input does this to cancel editing). Ask for confirmation with `ConfirmDialog`, never `window.confirm`.
 - Tailwind v4 is imported in `styles.css`, but components are styled mostly with **hand-written semantic CSS classes** (`.button-primary`, `.dialog`, `.board-column`, and so on). Those classes live in `src/styles.css` (minified, single line) and per-area CSS files (`task-modal.css`, `milestones.css`, …). All CSS files are imported globally in `src/main.tsx`, so a new CSS file has to be added there. Follow the existing class-based approach rather than switching to utility classes.
 
 ### Domain notes
 
-- Estimates are shown and entered as `2w 4d 6h 45m` and sent to the API as `originalEstimateMinutes`, with `1w = 5d` and `1d = 8h` (`ESTIMATE_MINUTES` in `project-page.tsx`).
+- Estimates are shown and entered as `2w 4d 6h 45m` and sent to the API as `originalEstimateMinutes`, with `1w = 5d` and `1d = 8h` (`ESTIMATE_MINUTES` in `tasks/task-utils.ts`).
 - Project task filters live in the URL (`?q=…&statuses=TODO,DONE&assignees=…&unassigned=1&view=<savedFilterId>`), so filtered views can be shared. The last active saved filter is also remembered per project in `localStorage` (`savedFilterStorageKey(projectId)`) and restored when the project opens without filter params.
 - `PATCH /projects/:projectId/tasks/:id/milestone` is expected to return the updated task.
 

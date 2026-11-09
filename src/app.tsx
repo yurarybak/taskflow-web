@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import {
   Navigate,
   Outlet,
@@ -6,30 +7,60 @@ import {
   type RouteObject,
 } from "react-router-dom";
 import { AppShell } from "./app-shell";
-import {
-  ForgotPage,
-  LoginPage,
-  RegisterPage,
-  ResetPage,
-} from "./features/auth/auth-pages";
 import { useAuth } from "./features/auth/auth-provider";
-import { ProfilePage } from "./features/profile/profile-page";
-import { ProjectPage } from "./features/tasks/project-page";
-import {
-  WorkspacePage,
-  WorkspacesPage,
-} from "./features/workspaces/workspace-pages";
 import { Skeleton } from "./components/ui";
 
+// Every page is code-split. Signed-in pages suspend inside AppShell (the
+// sidebar stays visible); public pages use the full-screen boot skeleton.
+const authPage = (
+  name: "LoginPage" | "RegisterPage" | "ForgotPage" | "ResetPage",
+) =>
+  lazy(() =>
+    import("./features/auth/auth-pages").then((module) => ({
+      default: module[name],
+    })),
+  );
+const LoginPage = authPage("LoginPage");
+const RegisterPage = authPage("RegisterPage");
+const ForgotPage = authPage("ForgotPage");
+const ResetPage = authPage("ResetPage");
+const ProfilePage = lazy(() =>
+  import("./features/profile/profile-page").then((module) => ({
+    default: module.ProfilePage,
+  })),
+);
+const ProjectPage = lazy(() =>
+  import("./features/tasks/project-page").then((module) => ({
+    default: module.ProjectPage,
+  })),
+);
+const WorkspacePage = lazy(() =>
+  import("./features/workspaces/workspace-pages").then((module) => ({
+    default: module.WorkspacePage,
+  })),
+);
+const WorkspacesPage = lazy(() =>
+  import("./features/workspaces/workspace-pages").then((module) => ({
+    default: module.WorkspacesPage,
+  })),
+);
+
+const bootSkeleton = (
+  <main className="boot">
+    <Skeleton rows={5} />
+  </main>
+);
 function Protected() {
   const { user, loading } = useAuth();
-  if (loading)
-    return (
-      <main className="boot">
-        <Skeleton rows={5} />
-      </main>
-    );
+  if (loading) return bootSkeleton;
   return user ? <Outlet /> : <Navigate to="/login" replace />;
+}
+function PublicPages() {
+  return (
+    <Suspense fallback={bootSkeleton}>
+      <Outlet />
+    </Suspense>
+  );
 }
 export const routes: RouteObject[] = [
   {
@@ -49,10 +80,15 @@ export const routes: RouteObject[] = [
       },
     ],
   },
-  { path: "/login", element: <LoginPage /> },
-  { path: "/register", element: <RegisterPage /> },
-  { path: "/forgot-password", element: <ForgotPage /> },
-  { path: "/reset-password", element: <ResetPage /> },
+  {
+    element: <PublicPages />,
+    children: [
+      { path: "/login", element: <LoginPage /> },
+      { path: "/register", element: <RegisterPage /> },
+      { path: "/forgot-password", element: <ForgotPage /> },
+      { path: "/reset-password", element: <ResetPage /> },
+    ],
+  },
 ];
 const router = createBrowserRouter(routes);
 export function App() {

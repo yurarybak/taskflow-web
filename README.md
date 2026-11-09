@@ -130,10 +130,14 @@ src/
     auth/
     profile/
     tasks/
+      task-modal/
     workspaces/
+  hooks/
   lib/
     api.ts
+    query-client.ts
     query-keys.ts
+    sanitize.ts
     token-storage.ts
     types.ts
     utils.ts
@@ -144,7 +148,9 @@ Key files:
 
 - `src/lib/api.ts` - typed REST adapter and token refresh handling
 - `src/lib/types.ts` - shared frontend DTO/types
-- `src/features/tasks/project-page.tsx` - project tasks, board, task modal, milestones, filters
+- `src/features/tasks/project-page.tsx` - project board/list, filters and saved filters
+- `src/features/tasks/task-modal/` - task details modal and its sections (comments, checklist, worklogs, ...)
+- `src/features/tasks/task-filters.ts` - task filter helpers and the filter URL format
 - `src/components/ui.tsx` - shared UI primitives
 
 ## API Notes

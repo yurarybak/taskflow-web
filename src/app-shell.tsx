@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Avatar, Button, Empty, Skeleton } from "./components/ui";
 import { useAuth } from "./features/auth/auth-provider";
@@ -259,7 +259,9 @@ export function AppShell() {
           </Link>
         </div>
         <div className="content">
-          <Outlet />
+          <Suspense fallback={<Skeleton rows={5} />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>

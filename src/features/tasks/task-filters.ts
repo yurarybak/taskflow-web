@@ -1,4 +1,5 @@
 import type {
+  TaskExportFilters,
   TaskFilters,
   TaskPriority,
   TaskStatus,
@@ -138,3 +139,51 @@ export function paramsWithFilters(
   if (savedFilterId) next.set(SAVED_FILTER_PARAM, savedFilterId);
   return next;
 }
+
+// Export filters (task CSV exports) use their own shape.
+export const cleanTaskExportFilters = (
+  filters: TaskExportFilters,
+): TaskExportFilters => ({
+  ...(filters.taskIds?.length ? { taskIds: filters.taskIds } : {}),
+  ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
+  ...(filters.statuses?.length ? { statuses: filters.statuses } : {}),
+  ...(filters.priorities?.length ? { priorities: filters.priorities } : {}),
+  ...(filters.types?.length ? { types: filters.types } : {}),
+  ...(filters.assigneeIds?.length ? { assigneeIds: filters.assigneeIds } : {}),
+  ...(filters.labelIds?.length ? { labelIds: filters.labelIds } : {}),
+  ...(filters.milestoneIds?.length
+    ? { milestoneIds: filters.milestoneIds }
+    : {}),
+  ...(filters.withoutAssignee ? { withoutAssignee: true } : {}),
+  ...(filters.withoutMilestone ? { withoutMilestone: true } : {}),
+  ...(filters.includeArchived ? { includeArchived: true } : {}),
+});
+export const exportFiltersFromTaskFilters = (
+  filters: TaskFilters,
+): TaskExportFilters =>
+  cleanTaskExportFilters({
+    search: filters.search,
+    statuses: filters.statuses,
+    priorities: filters.priorities,
+    types: filters.types,
+    assigneeIds: filters.assigneeIds,
+    milestoneIds: filters.milestoneIds,
+    withoutAssignee: filters.unassigned,
+    withoutMilestone: filters.withoutMilestone,
+  });
+export const taskExportFilterCount = (filters: TaskExportFilters) => {
+  const clean = cleanTaskExportFilters(filters);
+  return (
+    (clean.statuses?.length ?? 0) +
+    (clean.taskIds?.length ?? 0) +
+    (clean.priorities?.length ?? 0) +
+    (clean.types?.length ?? 0) +
+    (clean.assigneeIds?.length ?? 0) +
+    (clean.labelIds?.length ?? 0) +
+    (clean.milestoneIds?.length ?? 0) +
+    (clean.withoutAssignee ? 1 : 0) +
+    (clean.withoutMilestone ? 1 : 0) +
+    (clean.includeArchived ? 1 : 0) +
+    (clean.search ? 1 : 0)
+  );
+};

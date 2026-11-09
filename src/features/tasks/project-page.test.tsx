@@ -231,3 +231,29 @@ describe("ProjectPage filters and keyboard access", () => {
     expect(card).toHaveFocus();
   });
 });
+
+describe("TaskForm", () => {
+  beforeEach(() => {
+    localStorage.setItem("taskflow.refreshToken", "stored-refresh");
+  });
+
+  it("creates a task without sending an empty description", async () => {
+    let sentBody: Record<string, unknown> | undefined;
+    server.use(
+      http.post(apiUrl("/projects/:projectId/tasks"), async ({ request }) => {
+        sentBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(makeTask({ id: "task-9", title: "New one" }));
+      }),
+    );
+    renderApp(projectPath);
+    fireEvent.click(await screen.findByRole("button", { name: "New task" }));
+    const dialog = await screen.findByRole("dialog", { name: "New task" });
+    fireEvent.change(within(dialog).getByLabelText("Title"), {
+      target: { value: "New one" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save task" }));
+    await waitFor(() => expect(sentBody).toBeDefined());
+    expect(sentBody).toMatchObject({ title: "New one" });
+    expect(sentBody).not.toHaveProperty("description");
+  });
+});
