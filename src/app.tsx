@@ -35,12 +35,12 @@ const ProjectPage = lazy(() =>
   })),
 );
 const WorkspacePage = lazy(() =>
-  import("./features/workspaces/workspace-pages").then((module) => ({
+  import("./features/workspaces/workspace-page").then((module) => ({
     default: module.WorkspacePage,
   })),
 );
 const WorkspacesPage = lazy(() =>
-  import("./features/workspaces/workspace-pages").then((module) => ({
+  import("./features/workspaces/workspaces-page").then((module) => ({
     default: module.WorkspacesPage,
   })),
 );

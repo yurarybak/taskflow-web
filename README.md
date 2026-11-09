@@ -1,5 +1,7 @@
 # TaskFlow Web
 
+[![CI](https://github.com/yurarybak/taskflow-web/actions/workflows/ci.yml/badge.svg)](https://github.com/yurarybak/taskflow-web/actions/workflows/ci.yml)
+
 TaskFlow Web is a React + TypeScript frontend for the TaskFlow REST API. It provides workspace/project management, a Jira-style task board, task details, comments, attachments, checklist items, milestones, saved task filters, watchers, avatar support, and profile management.
 
 ## Tech Stack
@@ -17,7 +19,7 @@ TaskFlow Web is a React + TypeScript frontend for the TaskFlow REST API. It prov
 
 ## Requirements
 
-- Node.js 22+
+- Node.js 24 (pinned in `.nvmrc`; run `nvm use`)
 - npm
 - Running TaskFlow API backend
 
@@ -64,6 +66,8 @@ npm run dev
 npm run build
 npm run lint
 npm run test
+npm run format        # prettier --write
+npm run format:check
 ```
 
 ## WSL Usage
@@ -178,7 +182,10 @@ to return the updated task.
 Before handing off changes, run:
 
 ```bash
-npm run build
+npm run format:check
 npm run lint
 npm run test
+npm run build
 ```
+
+The same checks run in GitHub Actions (`.github/workflows/ci.yml`) on every push to `main` and on every pull request, after a clean `npm ci` on Linux with the Node version from `.nvmrc`. Tests mock the API with msw, so CI needs no backend or secrets.

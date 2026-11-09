@@ -16,7 +16,7 @@ npx vitest run src/lib/api.test.ts             # one test file
 npx vitest run src/lib/api.test.ts -t "bootstrap"  # tests whose name matches
 ```
 
-Before handing off changes, run `npm run build`, `npm run lint`, `npm run test` and `npm run format:check`. Line endings are LF (`.gitattributes`); `src/styles.css` is excluded from prettier because it is minified.
+Before handing off changes, run `npm run build`, `npm run lint`, `npm run test` and `npm run format:check`. GitHub Actions (`.github/workflows/ci.yml`) runs the same four checks after a clean `npm ci` on Linux, on pushes to `main` and on pull requests. Node is pinned in `.nvmrc` (24). Linux paths are case-sensitive, so import paths must match file names exactly. Line endings are LF (`.gitattributes`); `src/styles.css` is excluded from prettier because it is minified.
 
 ### Lint conventions
 
@@ -69,7 +69,7 @@ A feature is a folder of focused modules. One component, or a few tightly relate
   - `task-fields.tsx`: shared field controls (date picker, priority/type/user/milestone dropdowns, collapsible section). `mentions.tsx`: mention parsing/rendering and `MentionTextarea`.
   - `task-utils.ts`: estimates (`ESTIMATE_MINUTES`, `parseEstimate`, `formatEstimate`), date input formatting, `find*` lookups, `saveBlobFile`, abortable `wait`.
   - `task-filters.ts`: pure task-filter helpers (validation, `cleanTaskFilters`, `toggleValue`, export-filter helpers) and the URL format (`filtersFromParams` / `paramsWithFilters`).
-- **`workspaces/workspace-pages.tsx`**: the workspaces list, plus a workspace page with Projects, Members, Labels and Task Templates tabs.
+- **`workspaces/`**: `workspaces-page.tsx` (workspaces list and `WorkspaceForm`) and `workspace-page.tsx` (one workspace, with tabs). Each tab is its own module: `projects-tab`, `members-tab`, `labels-tab`, `task-templates-tab` (+ `task-template-form`). `workspace-utils.ts` holds `useInvalidate`, `humanizeConstant` and the template type/priority/sort options.
 - **`profile/`** and **`auth/`**: auth forms use react-hook-form with zod (`zodResolver`). Most other forms use local `useState`.
 
 Typical mutation pattern: `useMutation` → `onSuccess`: `void client.invalidateQueries({ queryKey: keys.… })` + `toast.success` (sonner). Errors are toasted globally (see `query-client.ts`).
