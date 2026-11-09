@@ -1,0 +1,8 @@
+dist
+coverage
+node_modules
+package-lock.json
+.claude
+.playwright-mcp
+# Minified on purpose, see CLAUDE.md
+src/styles.css

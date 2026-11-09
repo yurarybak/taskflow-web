@@ -3,6 +3,7 @@ import {
   Outlet,
   createBrowserRouter,
   RouterProvider,
+  type RouteObject,
 } from "react-router-dom";
 import { AppShell } from "./app-shell";
 import {
@@ -30,7 +31,7 @@ function Protected() {
     );
   return user ? <Outlet /> : <Navigate to="/login" replace />;
 }
-const router = createBrowserRouter([
+export const routes: RouteObject[] = [
   {
     element: <Protected />,
     children: [
@@ -52,7 +53,8 @@ const router = createBrowserRouter([
   { path: "/register", element: <RegisterPage /> },
   { path: "/forgot-password", element: <ForgotPage /> },
   { path: "/reset-password", element: <ResetPage /> },
-]);
+];
+const router = createBrowserRouter(routes);
 export function App() {
   return <RouterProvider router={router} />;
 }

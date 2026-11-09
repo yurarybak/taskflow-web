@@ -44,23 +44,18 @@ function NotificationsCenter() {
     queryFn: api.unreadNotifications,
     refetchInterval: 30_000,
   });
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: keys.notifications(unreadOnly),
-    enabled: open,
-    initialPageParam: 1,
-    queryFn: ({ pageParam }) =>
-      api.notifications({ page: pageParam, limit: 10, unreadOnly }),
-    getNextPageParam: (lastPage) =>
-      lastPage.meta.page < lastPage.meta.totalPages
-        ? lastPage.meta.page + 1
-        : undefined,
-  });
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: keys.notifications(unreadOnly),
+      enabled: open,
+      initialPageParam: 1,
+      queryFn: ({ pageParam }) =>
+        api.notifications({ page: pageParam, limit: 10, unreadOnly }),
+      getNextPageParam: (lastPage) =>
+        lastPage.meta.page < lastPage.meta.totalPages
+          ? lastPage.meta.page + 1
+          : undefined,
+    });
   const refresh = () => {
     client.invalidateQueries({ queryKey: keys.notifications(unreadOnly) });
     client.invalidateQueries({ queryKey: keys.unreadNotifications });
@@ -79,7 +74,10 @@ function NotificationsCenter() {
   });
   useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
-      if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -116,7 +114,9 @@ function NotificationsCenter() {
     <div className="notifications-center" ref={panelRef}>
       <button
         type="button"
-        className={open ? "notifications-trigger active" : "notifications-trigger"}
+        className={
+          open ? "notifications-trigger active" : "notifications-trigger"
+        }
         onClick={() => setOpen((current) => !current)}
       >
         <span className="notifications-icon">

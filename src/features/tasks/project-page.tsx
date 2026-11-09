@@ -125,7 +125,9 @@ const cleanTaskExportFilters = (
   ...(filters.withoutMilestone ? { withoutMilestone: true } : {}),
   ...(filters.includeArchived ? { includeArchived: true } : {}),
 });
-const exportFiltersFromTaskFilters = (filters: TaskFilters): TaskExportFilters =>
+const exportFiltersFromTaskFilters = (
+  filters: TaskFilters,
+): TaskExportFilters =>
   cleanTaskExportFilters({
     search: filters.search,
     statuses: filters.statuses,
@@ -381,7 +383,8 @@ function TaskForm({
   });
   const { data: templatesPage } = useQuery({
     queryKey: keys.taskTemplates(workspaceId || "", { page: 1, limit: 100 }),
-    queryFn: () => api.taskTemplates(workspaceId || "", { page: 1, limit: 100 }),
+    queryFn: () =>
+      api.taskTemplates(workspaceId || "", { page: 1, limit: 100 }),
     enabled: isCreating && !!workspaceId,
   });
   const { data: templateMembers } = useQuery({
@@ -2190,7 +2193,9 @@ function TaskReminders({ task }: { task: Task }) {
       if (!reminderDate || !reminderTime) {
         throw new Error("Reminder date and time are required");
       }
-      const remindAt = new Date(`${reminderDate}T${reminderTime}:00`).toISOString();
+      const remindAt = new Date(
+        `${reminderDate}T${reminderTime}:00`,
+      ).toISOString();
       return editingReminder
         ? api.updateReminder(task.id, editingReminder.id, remindAt)
         : api.createReminder(task.id, remindAt);
@@ -2327,7 +2332,11 @@ function TaskReminders({ task }: { task: Task }) {
               <button type="button" onClick={inOneHour}>
                 In 1 hour
               </button>
-              <button type="button" disabled={!task.dueDate} onClick={onDueDate}>
+              <button
+                type="button"
+                disabled={!task.dueDate}
+                onClick={onDueDate}
+              >
                 On due date
               </button>
             </div>
@@ -2672,8 +2681,13 @@ function TaskModal({
           saveBlobFile(blob, fileName || taskExport.fileName || "task.csv");
           return;
         }
-        if (taskExport.status === "FAILED" || taskExport.status === "CANCELLED") {
-          throw new Error(taskExport.error || "Task export could not be created");
+        if (
+          taskExport.status === "FAILED" ||
+          taskExport.status === "CANCELLED"
+        ) {
+          throw new Error(
+            taskExport.error || "Task export could not be created",
+          );
         }
         await wait(1000);
         taskExport = await api.taskExport(projectId, taskExport.id);
@@ -3533,7 +3547,9 @@ function TaskExportsDialog({
     currentBoardExportFilters,
   );
   const activeExportFilterCount = taskExportFilterCount(exportFilters);
-  const currentBoardFilterCount = taskExportFilterCount(currentBoardExportFilters);
+  const currentBoardFilterCount = taskExportFilterCount(
+    currentBoardExportFilters,
+  );
   const { data, isLoading, error } = useQuery({
     queryKey: keys.taskExports(projectId, page),
     queryFn: () => api.taskExports(projectId, { page, limit: 10 }),
@@ -3580,7 +3596,9 @@ function TaskExportsDialog({
     setExportFilters({
       ...exportFilters,
       [key]: next.length ? next : undefined,
-      ...(key === "assigneeIds" && next.length ? { withoutAssignee: false } : {}),
+      ...(key === "assigneeIds" && next.length
+        ? { withoutAssignee: false }
+        : {}),
       ...(key === "milestoneIds" && next.length
         ? { withoutMilestone: false }
         : {}),
@@ -3626,7 +3644,10 @@ function TaskExportsDialog({
         projectId,
         taskExport.id,
       );
-      saveBlobFile(blob, fileName || taskExport.fileName || "taskflow-tasks.csv");
+      saveBlobFile(
+        blob,
+        fileName || taskExport.fileName || "taskflow-tasks.csv",
+      );
     },
     onError: (e) => toast.error(e.message),
   });
@@ -3638,8 +3659,8 @@ function TaskExportsDialog({
       <div className="task-exports-dialog">
         <div className="task-exports-intro">
           <p>
-            Create a CSV export for this project. Use filters when you only
-            need a specific slice of work.
+            Create a CSV export for this project. Use filters when you only need
+            a specific slice of work.
           </p>
           <Button
             type="button"
@@ -3694,7 +3715,9 @@ function TaskExportsDialog({
           <div className="task-export-filter-bar" ref={exportFiltersRef}>
             <div className="task-export-filter-popover">
               <button
-                className={(exportFilters.statuses?.length ?? 0) ? "active" : ""}
+                className={
+                  (exportFilters.statuses?.length ?? 0) ? "active" : ""
+                }
                 type="button"
                 onClick={() =>
                   setOpenExportFilter(
@@ -3702,7 +3725,10 @@ function TaskExportsDialog({
                   )
                 }
               >
-                {filterButtonLabel("Status", exportFilters.statuses?.length ?? 0)}
+                {filterButtonLabel(
+                  "Status",
+                  exportFilters.statuses?.length ?? 0,
+                )}
                 <ChevronDown size={14} />
               </button>
               {openExportFilter === "statuses" && (
@@ -3711,8 +3737,12 @@ function TaskExportsDialog({
                     <label className="task-export-filter-option" key={status}>
                       <input
                         type="checkbox"
-                        checked={(exportFilters.statuses ?? []).includes(status)}
-                        onChange={() => toggleExportArrayValue("statuses", status)}
+                        checked={(exportFilters.statuses ?? []).includes(
+                          status,
+                        )}
+                        onChange={() =>
+                          toggleExportArrayValue("statuses", status)
+                        }
                       />
                       <span>{statusLabel(status)}</span>
                     </label>
@@ -3763,7 +3793,9 @@ function TaskExportsDialog({
                 className={(exportFilters.types?.length ?? 0) ? "active" : ""}
                 type="button"
                 onClick={() =>
-                  setOpenExportFilter(openExportFilter === "types" ? null : "types")
+                  setOpenExportFilter(
+                    openExportFilter === "types" ? null : "types",
+                  )
                 }
               >
                 {filterButtonLabel("Type", exportFilters.types?.length ?? 0)}
@@ -3826,7 +3858,10 @@ function TaskExportsDialog({
                     <span>Unassigned</span>
                   </label>
                   {members?.map((member) => (
-                    <label className="task-export-filter-option" key={member.id}>
+                    <label
+                      className="task-export-filter-option"
+                      key={member.id}
+                    >
                       <input
                         type="checkbox"
                         checked={(exportFilters.assigneeIds ?? []).includes(
@@ -3909,7 +3944,9 @@ function TaskExportsDialog({
             </div>
             <div className="task-export-filter-popover">
               <button
-                className={(exportFilters.labelIds?.length ?? 0) ? "active" : ""}
+                className={
+                  (exportFilters.labelIds?.length ?? 0) ? "active" : ""
+                }
                 type="button"
                 onClick={() =>
                   setOpenExportFilter(
@@ -3917,14 +3954,20 @@ function TaskExportsDialog({
                   )
                 }
               >
-                {filterButtonLabel("Labels", exportFilters.labelIds?.length ?? 0)}
+                {filterButtonLabel(
+                  "Labels",
+                  exportFilters.labelIds?.length ?? 0,
+                )}
                 <ChevronDown size={14} />
               </button>
               {openExportFilter === "labels" && (
                 <div className="task-export-filter-menu">
                   {labels?.length ? (
                     labels.map((label) => (
-                      <label className="task-export-filter-option" key={label.id}>
+                      <label
+                        className="task-export-filter-option"
+                        key={label.id}
+                      >
                         <input
                           type="checkbox"
                           checked={(exportFilters.labelIds ?? []).includes(
@@ -3988,12 +4031,16 @@ function TaskExportsDialog({
                         `Task export ${taskExport.id.slice(0, 8)}`}
                     </strong>
                     <small>
-                      Created {format(new Date(taskExport.createdAt), "MMM d, HH:mm")}
+                      Created{" "}
+                      {format(new Date(taskExport.createdAt), "MMM d, HH:mm")}
                     </small>
                     {taskExport.completedAt && (
                       <small>
                         Completed{" "}
-                        {format(new Date(taskExport.completedAt), "MMM d, HH:mm")}
+                        {format(
+                          new Date(taskExport.completedAt),
+                          "MMM d, HH:mm",
+                        )}
                       </small>
                     )}
                     <div className="task-export-progress">

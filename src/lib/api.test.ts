@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api";
 import { tokenStorage } from "./token-storage";
 
-const response = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+const response = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 
 describe("api authentication", () => {
   beforeEach(() => tokenStorage.clear());
@@ -10,7 +14,16 @@ describe("api authentication", () => {
 
   it("stores a refreshed session during bootstrap", async () => {
     tokenStorage.set("old", "refresh-token");
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, { accessToken: "new-access", refreshToken: "new-refresh", user: { id: "1", email: "me@example.com" } })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        response(200, {
+          accessToken: "new-access",
+          refreshToken: "new-refresh",
+          user: { id: "1", email: "me@example.com" },
+        }),
+      ),
+    );
     expect(await api.bootstrap()).toBe(true);
     expect(tokenStorage.getAccess()).toBe("new-access");
     expect(tokenStorage.getRefresh()).toBe("new-refresh");
@@ -18,14 +31,26 @@ describe("api authentication", () => {
 
   it("clears the session when refresh is rejected", async () => {
     tokenStorage.set("old", "invalid");
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(401, { message: "Invalid refresh token" })));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(response(401, { message: "Invalid refresh token" })),
+    );
     expect(await api.bootstrap()).toBe(false);
     expect(tokenStorage.getAccess()).toBeNull();
     expect(tokenStorage.getRefresh()).toBeNull();
   });
 
   it("normalizes an array workspace response for the UI", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, [{ id: "workspace-1", name: "Personal" }])));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          response(200, [{ id: "workspace-1", name: "Personal" }]),
+        ),
+    );
     await expect(api.workspaces()).resolves.toEqual({
       data: [{ id: "workspace-1", name: "Personal" }],
       meta: { page: 1, limit: 1, total: 1, totalPages: 1 },
@@ -33,7 +58,14 @@ describe("api authentication", () => {
   });
 
   it("adds an empty labels collection to tasks without labels", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, [{ id: "task-1", title: "Review API" }])));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          response(200, [{ id: "task-1", title: "Review API" }]),
+        ),
+    );
     await expect(api.tasks("project-1")).resolves.toMatchObject({
       data: [{ id: "task-1", title: "Review API", labels: [] }],
     });
@@ -132,7 +164,9 @@ describe("api authentication", () => {
       .mockResolvedValueOnce(response(200, template))
       .mockResolvedValueOnce(response(200, template))
       .mockResolvedValueOnce(response(200, { ...template, name: "Bug" }))
-      .mockResolvedValueOnce(response(200, { ...template, id: "template-copy" }))
+      .mockResolvedValueOnce(
+        response(200, { ...template, id: "template-copy" }),
+      )
       .mockResolvedValueOnce(response(200, { success: true }))
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
@@ -236,8 +270,12 @@ describe("api authentication", () => {
       .mockResolvedValueOnce(response(200, [taskExport]))
       .mockResolvedValueOnce(response(200, taskExport))
       .mockResolvedValueOnce(response(200, taskExport))
-      .mockResolvedValueOnce(response(200, { ...taskExport, status: "CANCELLED" }))
-      .mockResolvedValueOnce(response(200, { ...taskExport, status: "PENDING" }))
+      .mockResolvedValueOnce(
+        response(200, { ...taskExport, status: "CANCELLED" }),
+      )
+      .mockResolvedValueOnce(
+        response(200, { ...taskExport, status: "PENDING" }),
+      )
       .mockResolvedValueOnce(csvResponse)
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
@@ -315,8 +353,16 @@ describe("api authentication", () => {
   it("calls task archive and unarchive endpoints", async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(response(200, { id: "task-1", labels: [], archivedAt: "2026-06-04T10:00:00.000Z" }))
-      .mockResolvedValueOnce(response(200, { id: "task-1", labels: [], archivedAt: null }));
+      .mockResolvedValueOnce(
+        response(200, {
+          id: "task-1",
+          labels: [],
+          archivedAt: "2026-06-04T10:00:00.000Z",
+        }),
+      )
+      .mockResolvedValueOnce(
+        response(200, { id: "task-1", labels: [], archivedAt: null }),
+      );
     vi.stubGlobal("fetch", fetch);
     await api.archiveTask("project-1", "task-1");
     await api.unarchiveTask("project-1", "task-1");
@@ -335,8 +381,16 @@ describe("api authentication", () => {
   it("calls task flag and unflag endpoints", async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(response(200, { id: "task-1", labels: [], flaggedAt: "2026-06-04T10:00:00.000Z" }))
-      .mockResolvedValueOnce(response(200, { id: "task-1", labels: [], flaggedAt: null }));
+      .mockResolvedValueOnce(
+        response(200, {
+          id: "task-1",
+          labels: [],
+          flaggedAt: "2026-06-04T10:00:00.000Z",
+        }),
+      )
+      .mockResolvedValueOnce(
+        response(200, { id: "task-1", labels: [], flaggedAt: null }),
+      );
     vi.stubGlobal("fetch", fetch);
     await api.flagTask("project-1", "task-1");
     await api.unflagTask("project-1", "task-1");
@@ -353,7 +407,9 @@ describe("api authentication", () => {
   });
 
   it("calls the task clone endpoint", async () => {
-    const fetch = vi.fn().mockResolvedValue(response(200, { id: "task-copy", labels: [] }));
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(response(200, { id: "task-copy", labels: [] }));
     vi.stubGlobal("fetch", fetch);
     await api.cloneTask("project-1", "task-1");
     expect(fetch).toHaveBeenCalledWith(
@@ -376,13 +432,20 @@ describe("api authentication", () => {
       .fn()
       .mockResolvedValueOnce(response(200, [item]))
       .mockResolvedValueOnce(response(200, item))
-      .mockResolvedValueOnce(response(200, { ...item, title: "Write more tests" }))
+      .mockResolvedValueOnce(
+        response(200, { ...item, title: "Write more tests" }),
+      )
       .mockResolvedValueOnce(response(200, { ...item, isCompleted: true }))
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
     await api.checklistItems("task-1");
-    await api.createChecklistItem("task-1", { title: "Write tests", position: 0 });
-    await api.updateChecklistItem("task-1", "item-1", { title: "Write more tests" });
+    await api.createChecklistItem("task-1", {
+      title: "Write tests",
+      position: 0,
+    });
+    await api.updateChecklistItem("task-1", "item-1", {
+      title: "Write more tests",
+    });
     await api.toggleChecklistItem("task-1", "item-1", true);
     await api.removeChecklistItem("task-1", "item-1");
     expect(fetch).toHaveBeenNthCalledWith(
@@ -413,7 +476,10 @@ describe("api authentication", () => {
   });
 
   it("calls task watcher endpoints", async () => {
-    const watcher = { userId: "user-1", user: { id: "user-1", email: "one@example.com" } };
+    const watcher = {
+      userId: "user-1",
+      user: { id: "user-1", email: "one@example.com" },
+    };
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(response(200, [watcher]))
@@ -467,12 +533,18 @@ describe("api authentication", () => {
       .fn()
       .mockResolvedValueOnce(response(200, [reminder]))
       .mockResolvedValueOnce(response(200, reminder))
-      .mockResolvedValueOnce(response(200, { ...reminder, remindAt: "2026-06-12T11:00:00.000Z" }))
+      .mockResolvedValueOnce(
+        response(200, { ...reminder, remindAt: "2026-06-12T11:00:00.000Z" }),
+      )
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
     await api.reminders("task-1");
     await api.createReminder("task-1", "2026-06-12T10:30:00.000Z");
-    await api.updateReminder("task-1", "reminder-1", "2026-06-12T11:00:00.000Z");
+    await api.updateReminder(
+      "task-1",
+      "reminder-1",
+      "2026-06-12T11:00:00.000Z",
+    );
     await api.removeReminder("task-1", "reminder-1");
     expect(fetch).toHaveBeenNthCalledWith(
       1,
@@ -517,7 +589,12 @@ describe("api authentication", () => {
       .mockResolvedValueOnce(response(200, milestone))
       .mockResolvedValueOnce(response(200, milestone))
       .mockResolvedValueOnce(response(200, { ...milestone, name: "MVP 2" }))
-      .mockResolvedValueOnce(response(200, { ...milestone, completedAt: "2026-06-05T10:00:00.000Z" }))
+      .mockResolvedValueOnce(
+        response(200, {
+          ...milestone,
+          completedAt: "2026-06-05T10:00:00.000Z",
+        }),
+      )
       .mockResolvedValueOnce(response(200, { ...milestone, completedAt: null }))
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
@@ -657,7 +734,9 @@ describe("api authentication", () => {
       .mockResolvedValueOnce(response(200, [worklog]))
       .mockResolvedValueOnce(response(200, worklog))
       .mockResolvedValueOnce(response(200, worklog))
-      .mockResolvedValueOnce(response(200, { ...worklog, timeSpentMinutes: 90 }))
+      .mockResolvedValueOnce(
+        response(200, { ...worklog, timeSpentMinutes: 90 }),
+      )
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
     await api.worklogs("project-1", "task-1");
@@ -700,10 +779,12 @@ describe("api authentication", () => {
   });
 
   it("serializes worklog pagination", async () => {
-    const fetch = vi.fn().mockResolvedValue(response(200, {
-      data: [],
-      meta: { page: 2, limit: 10, total: 0, totalPages: 0 },
-    }));
+    const fetch = vi.fn().mockResolvedValue(
+      response(200, {
+        data: [],
+        meta: { page: 2, limit: 10, total: 0, totalPages: 0 },
+      }),
+    );
     vi.stubGlobal("fetch", fetch);
     await api.worklogs("project-1", "task-1", { page: 2, limit: 10 });
     expect(fetch).toHaveBeenCalledWith(
@@ -713,10 +794,15 @@ describe("api authentication", () => {
   });
 
   it("keeps paginated comments metadata for infinite scroll", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, {
-      data: [{ id: "comment-1", content: "Looks good" }],
-      meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
-    })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        response(200, {
+          data: [{ id: "comment-1", content: "Looks good" }],
+          meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
+        }),
+      ),
+    );
     await expect(api.comments("task-1")).resolves.toEqual({
       data: [{ id: "comment-1", content: "Looks good" }],
       meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
@@ -724,10 +810,12 @@ describe("api authentication", () => {
   });
 
   it("serializes comments pagination", async () => {
-    const fetch = vi.fn().mockResolvedValue(response(200, {
-      data: [],
-      meta: { page: 2, limit: 10, total: 0, totalPages: 0 },
-    }));
+    const fetch = vi.fn().mockResolvedValue(
+      response(200, {
+        data: [],
+        meta: { page: 2, limit: 10, total: 0, totalPages: 0 },
+      }),
+    );
     vi.stubGlobal("fetch", fetch);
     await api.comments("task-1", { page: 2, limit: 10 });
     expect(fetch).toHaveBeenCalledWith(
@@ -737,10 +825,12 @@ describe("api authentication", () => {
   });
 
   it("serializes activity pagination", async () => {
-    const fetch = vi.fn().mockResolvedValue(response(200, {
-      data: [],
-      meta: { page: 2, limit: 10, total: 0, totalPages: 0 },
-    }));
+    const fetch = vi.fn().mockResolvedValue(
+      response(200, {
+        data: [],
+        meta: { page: 2, limit: 10, total: 0, totalPages: 0 },
+      }),
+    );
     vi.stubGlobal("fetch", fetch);
     await api.activity("task-1", { page: 2, limit: 10 });
     expect(fetch).toHaveBeenCalledWith(
@@ -762,12 +852,16 @@ describe("api authentication", () => {
     };
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(response(200, {
-        data: [notification],
-        meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
-      }))
+      .mockResolvedValueOnce(
+        response(200, {
+          data: [notification],
+          meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
+        }),
+      )
       .mockResolvedValueOnce(response(200, { count: 1 }))
-      .mockResolvedValueOnce(response(200, { ...notification, readAt: "2026-06-09T10:01:00.000Z" }))
+      .mockResolvedValueOnce(
+        response(200, { ...notification, readAt: "2026-06-09T10:01:00.000Z" }),
+      )
       .mockResolvedValueOnce(response(200, { success: true }))
       .mockResolvedValueOnce(response(200, { success: true }));
     vi.stubGlobal("fetch", fetch);
@@ -804,6 +898,8 @@ describe("api authentication", () => {
   });
 
   it("builds the public user avatar route", () => {
-    expect(api.avatarUrl("user-1")).toBe("http://localhost:3000/users/user-1/avatar");
+    expect(api.avatarUrl("user-1")).toBe(
+      "http://localhost:3000/users/user-1/avatar",
+    );
   });
 });

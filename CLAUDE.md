@@ -9,13 +9,14 @@ npm run dev       # Vite dev server on http://localhost:5173
 npm run build     # tsc -b (type check) + vite build
 npm run lint      # eslint with --max-warnings=0, so any warning fails
 npm run test      # vitest run (jsdom)
+npm run format    # prettier --write on src/**/*.{ts,tsx}; config in .prettierrc (double quotes, semicolons, trailing commas)
+npm run format:check
 
 npx vitest run src/lib/api.test.ts             # one test file
 npx vitest run src/lib/api.test.ts -t "bootstrap"  # tests whose name matches
-npx prettier --write <files>                    # no npm script; config in .prettierrc (double quotes, semicolons, trailing commas)
 ```
 
-Before handing off changes, run `npm run build`, `npm run lint` and `npm run test` (the README asks for all three).
+Before handing off changes, run `npm run build`, `npm run lint`, `npm run test` and `npm run format:check`. Line endings are LF (`.gitattributes`); `src/styles.css` is excluded from prettier because it is minified.
 
 The app needs a running TaskFlow REST API backend. Its URL comes from `VITE_API_URL` (copy `.env.example` to `.env`; default `http://localhost:3000`). The backend must allow CORS from `http://localhost:5173`.
 
@@ -61,4 +62,8 @@ Typical mutation pattern: `useMutation` → `client.invalidateQueries({ queryKey
 
 ### Tests
 
-Tests live next to the code (`*.test.ts`) and currently cover `lib/` only. API tests stub the global `fetch` with `vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(...)))` and call `tokenStorage.clear()` in `beforeEach`. `msw` is installed but not used yet. Setup (`src/test/setup.ts`) loads the jest-dom matchers.
+Tests live next to the code (`*.test.ts` / `*.test.tsx`).
+
+- **`lib/` unit tests** stub the global `fetch` with `vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(...)))`.
+- **Component tests** render the real route tree with `renderApp(path)` from `src/test/render.tsx` (memory router, fresh `QueryClient`, `AuthProvider`). The backend is mocked with msw: `src/test/server.ts` holds default handlers for a signed-in user with one workspace, project and task, and a test overrides an endpoint with `server.use(http.get(apiUrl("/..."), ...))`. Unhandled requests fail the test. Fixture builders are in `src/test/fixtures.ts`. To start signed in, put a refresh token in `localStorage` (`taskflow.refreshToken`) before rendering.
+- `src/test/setup.ts` loads the jest-dom matchers, starts msw and, after each test, runs RTL `cleanup`, resets handlers and clears tokens and `localStorage`. The test API URL is pinned to `http://localhost:3000` in `vite.config.ts`.

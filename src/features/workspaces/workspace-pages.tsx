@@ -661,7 +661,9 @@ function TaskTemplateForm({
         <Field label="Priority">
           <Select
             value={priority}
-            onChange={(event) => setPriority(event.target.value as TaskPriority)}
+            onChange={(event) =>
+              setPriority(event.target.value as TaskPriority)
+            }
           >
             {taskTemplatePriorities.map((value) => (
               <option value={value} key={value}>
@@ -677,7 +679,10 @@ function TaskTemplateForm({
           <p>No labels yet</p>
         ) : (
           <div className="template-label-dropdown" ref={labelPickerRef}>
-            <button type="button" onClick={() => setLabelsOpen((open) => !open)}>
+            <button
+              type="button"
+              onClick={() => setLabelsOpen((open) => !open)}
+            >
               {labelIds.length
                 ? `${labelIds.length} label${labelIds.length > 1 ? "s" : ""}`
                 : "Select labels"}
@@ -730,8 +735,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
   const [create, setCreate] = useState(false);
   const [edit, setEdit] = useState<TaskTemplate>();
   const [deleteTemplate, setDeleteTemplate] = useState<TaskTemplate>();
-  const effectiveSearch =
-    search.trim().length >= 2 ? search.trim() : undefined;
+  const effectiveSearch = search.trim().length >= 2 ? search.trim() : undefined;
   const templateFilters: TaskTemplateFilters = {
     page,
     limit: 10,
@@ -805,7 +809,8 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
     onError: (e) => toast.error(e.message),
   });
   const bulkDelete = useMutation({
-    mutationFn: () => api.bulkDeleteTaskTemplates(workspaceId, selectedTemplateIds),
+    mutationFn: () =>
+      api.bulkDeleteTaskTemplates(workspaceId, selectedTemplateIds),
     onSuccess: () => {
       setBulkDeleteOpen(false);
       setSelectedTemplateIds([]);
@@ -929,7 +934,11 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
           )}
         </div>
         {hasActiveTemplateFilters && (
-          <Button type="button" variant="secondary" onClick={resetTemplateFilters}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={resetTemplateFilters}
+          >
             Clear
           </Button>
         )}
@@ -1145,9 +1154,7 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
         confirmText="Delete templates"
         loading={bulkDelete.isPending}
         onClose={() => setBulkDeleteOpen(false)}
-        onConfirm={() =>
-          selectedTemplateIds.length && bulkDelete.mutate()
-        }
+        onConfirm={() => selectedTemplateIds.length && bulkDelete.mutate()}
       />
     </>
   );

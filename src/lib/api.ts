@@ -371,10 +371,9 @@ export const api = {
       ...json(body),
     }),
   removeMilestone: (projectId: string, id: string) =>
-    request<{ success: boolean }>(
-      `/projects/${projectId}/milestones/${id}`,
-      { method: "DELETE" },
-    ),
+    request<{ success: boolean }>(`/projects/${projectId}/milestones/${id}`, {
+      method: "DELETE",
+    }),
   completeMilestone: (projectId: string, id: string) =>
     request<Milestone>(`/projects/${projectId}/milestones/${id}/complete`, {
       method: "PATCH",
@@ -436,10 +435,9 @@ export const api = {
       ...json(filters),
     }),
   removeTaskExport: (projectId: string, id: string) =>
-    request<{ success: boolean }>(
-      `/projects/${projectId}/task-exports/${id}`,
-      { method: "DELETE" },
-    ),
+    request<{ success: boolean }>(`/projects/${projectId}/task-exports/${id}`, {
+      method: "DELETE",
+    }),
   cancelTaskExport: (projectId: string, id: string) =>
     request<TaskExport>(`/projects/${projectId}/task-exports/${id}/cancel`, {
       method: "PATCH",
@@ -603,7 +601,10 @@ export const api = {
         `/tasks/${taskId}/checklist-items`,
       ),
     ),
-  createChecklistItem: (taskId: string, body: { title: string; position?: number }) =>
+  createChecklistItem: (
+    taskId: string,
+    body: { title: string; position?: number },
+  ) =>
     request<ChecklistItem>(`/tasks/${taskId}/checklist-items`, {
       method: "POST",
       ...json(body),

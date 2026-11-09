@@ -7,3 +7,6 @@ coverage
 .history
 # Claude Code local instructions
 CLAUDE.local.md
+
+# Playwright MCP artifacts
+.playwright-mcp
