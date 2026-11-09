@@ -23,6 +23,9 @@ interface AuthValue {
   logout: (all?: boolean) => Promise<void>;
   /** Replaces the signed-in user after a profile change. */
   updateUser: (user: User) => void;
+  /** Grows after each avatar upload or removal, so avatar URLs reload. */
+  avatarVersion: number;
+  avatarChanged: () => void;
 }
 const AuthContext = createContext<AuthValue | null>(null);
 
@@ -30,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const client = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [avatarVersion, setAvatarVersion] = useState(0);
   // Cached queries belong to the previous session, so they never outlive it.
   const endSession = () => {
     tokenStorage.clear();
@@ -90,7 +94,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, updateUser: setUser }}
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        updateUser: setUser,
+        avatarVersion,
+        avatarChanged: () => setAvatarVersion((value) => value + 1),
+      }}
     >
       {children}
     </AuthContext.Provider>

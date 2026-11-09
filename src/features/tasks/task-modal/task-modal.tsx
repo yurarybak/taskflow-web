@@ -108,7 +108,8 @@ export function TaskModal({
     void client.invalidateQueries({ queryKey: keys.task(projectId, task.id) });
   };
   const saveDescription = useMutation({
-    mutationFn: () => api.updateTask(projectId, task.id, { description }),
+    mutationFn: () =>
+      api.updateTask(projectId, task.id, { description: description || null }),
     onSuccess: (updated) => {
       onUpdated(updated);
       setEditingDescription(false);

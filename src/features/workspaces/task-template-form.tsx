@@ -56,14 +56,22 @@ export function TaskTemplateForm({
       const body = {
         name: name.trim(),
         title: title.trim(),
-        description: description.trim() || undefined,
         type,
         priority,
         labelIds,
       };
+      const text = description.trim();
+      // The API rejects an empty description: a new template omits it and
+      // an edited one clears it with null.
       return initial
-        ? api.updateTaskTemplate(workspaceId, initial.id, body)
-        : api.createTaskTemplate(workspaceId, body);
+        ? api.updateTaskTemplate(workspaceId, initial.id, {
+            ...body,
+            description: text || null,
+          })
+        : api.createTaskTemplate(workspaceId, {
+            ...body,
+            description: text || undefined,
+          });
     },
     onSuccess: () => {
       void invalidate(keys.taskTemplatesAll(workspaceId));

@@ -79,30 +79,57 @@ const normalizeAuth = (auth: AuthResponse): AuthResponse => ({
   user: normalizeUser(auth.user),
 });
 
+function expireSession() {
+  tokenStorage.clear();
+  sessionExpiredListeners.forEach((listener) => listener());
+}
+
+// Signing out in another tab removes the shared refresh token, which ends
+// the session here too instead of leaving a tab that fails on every request.
+if (typeof window !== "undefined")
+  window.addEventListener("storage", (event) => {
+    if (
+      event.key === tokenStorage.refreshKey &&
+      event.newValue === null &&
+      tokenStorage.getAccess()
+    )
+      expireSession();
+  });
+
+/**
+ * Tabs share one refresh token, and the backend revokes a refresh token once
+ * it is used. A Web Lock makes tabs refresh one after another, so each one
+ * reads the token the previous tab stored instead of reusing a revoked one.
+ */
+const withRefreshLock = <T>(run: () => Promise<T>): Promise<T> =>
+  typeof navigator !== "undefined" && "locks" in navigator
+    ? navigator.locks.request("taskflow.refresh", run)
+    : run();
+
 /**
  * Exchanges the refresh token for a new session. Resolves to `null` (and
  * clears the tokens) only when the backend rejects the token; network and
  * server errors are thrown so a temporary outage does not sign the user out.
  */
-async function refreshSession(): Promise<AuthResponse | null> {
-  const refreshToken = tokenStorage.getRefresh();
-  if (!refreshToken) return null;
-  const response = await fetch(`${API_URL}/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
+const refreshSession = () =>
+  withRefreshLock(async (): Promise<AuthResponse | null> => {
+    const refreshToken = tokenStorage.getRefresh();
+    if (!refreshToken) return null;
+    const response = await fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (response.status === 401 || response.status === 403) {
+      expireSession();
+      return null;
+    }
+    if (!response.ok)
+      throw new ApiError(response.status, await readErrorMessage(response));
+    const auth = normalizeAuth((await response.json()) as AuthResponse);
+    tokenStorage.set(auth.accessToken, auth.refreshToken);
+    return auth;
   });
-  if (response.status === 401 || response.status === 403) {
-    tokenStorage.clear();
-    sessionExpiredListeners.forEach((listener) => listener());
-    return null;
-  }
-  if (!response.ok)
-    throw new ApiError(response.status, await readErrorMessage(response));
-  const auth = normalizeAuth((await response.json()) as AuthResponse);
-  tokenStorage.set(auth.accessToken, auth.refreshToken);
-  return auth;
-}
 
 /** Runs one refresh at a time; concurrent callers share the same promise. */
 function refreshOnce() {
@@ -113,14 +140,24 @@ function refreshOnce() {
 }
 
 /**
+ * Request options, or a function that builds them. A function runs again
+ * for the retry after a refresh, so a body that holds the refresh token
+ * (logout) sends the new token, not the one the refresh just revoked.
+ */
+type RequestOptions = RequestInit | (() => RequestInit);
+
+/**
  * Sends an authenticated request. On a 401 it refreshes the session once and
- * retries; any other non-OK response is thrown as an `ApiError`.
+ * retries, unless `refresh` is false (public auth endpoints, where a 401
+ * means wrong credentials); any other non-OK response is thrown as an
+ * `ApiError`.
  */
 async function fetchWithAuth(
   path: string,
-  init: RequestInit = {},
-  retry = true,
+  options: RequestOptions = {},
+  refresh = true,
 ): Promise<Response> {
+  const init = typeof options === "function" ? options() : options;
   const headers = new Headers(init.headers);
   const token = tokenStorage.getAccess();
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -129,21 +166,28 @@ async function fetchWithAuth(
   const response = await fetch(`${API_URL}${path}`, { ...init, headers });
   if (
     response.status === 401 &&
-    retry &&
+    refresh &&
     tokenStorage.getRefresh() &&
     (await refreshOnce())
   )
-    return fetchWithAuth(path, init, false);
+    return fetchWithAuth(path, options, false);
   if (!response.ok)
     throw new ApiError(response.status, await readErrorMessage(response));
   return response;
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetchWithAuth(path, init);
+async function request<T>(
+  path: string,
+  options: RequestOptions = {},
+  refresh = true,
+): Promise<T> {
+  const response = await fetchWithAuth(path, options, refresh);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
+/** A request to a public auth endpoint: it never refreshes the session. */
+const publicRequest = <T>(path: string, init: RequestInit) =>
+  request<T>(path, init, false);
 /** Authenticated file download; the name comes from `Content-Disposition`. */
 async function requestBlob(path: string, fallbackFileName: string) {
   const response = await fetchWithAuth(path);
@@ -211,7 +255,7 @@ export const api = {
   bootstrap: async () => (await refreshOnce())?.user ?? null,
   login: async (body: { email: string; password: string }) =>
     normalizeAuth(
-      await request<AuthResponse>("/auth/login", {
+      await publicRequest<AuthResponse>("/auth/login", {
         method: "POST",
         ...json(body),
       }),
@@ -223,18 +267,18 @@ export const api = {
     lastName?: string;
   }) =>
     normalizeAuth(
-      await request<AuthResponse>("/auth/register", {
+      await publicRequest<AuthResponse>("/auth/register", {
         method: "POST",
         ...json(body),
       }),
     ),
   forgot: (email: string) =>
-    request<{ success: boolean }>("/auth/forgot-password", {
+    publicRequest<{ success: boolean }>("/auth/forgot-password", {
       method: "POST",
       ...json({ email }),
     }),
   reset: (body: { token: string; newPassword: string }) =>
-    request<{ success: boolean }>("/auth/reset-password", {
+    publicRequest<{ success: boolean }>("/auth/reset-password", {
       method: "POST",
       ...json(body),
     }),
@@ -258,12 +302,16 @@ export const api = {
   },
   removeAvatar: () =>
     request<{ success: boolean }>("/users/me/avatar", { method: "DELETE" }),
-  avatarUrl: (id: string) => `${API_URL}/users/${id}/avatar`,
+  /** `version` busts the browser cache after the avatar changes. */
+  avatarUrl: (id: string, version?: number) =>
+    `${API_URL}/users/${id}/avatar${version ? `?v=${version}` : ""}`,
+  // Built per attempt: if the access token has expired, the retry after the
+  // refresh must revoke the rotated refresh token, not the revoked one.
   logout: () =>
-    request<{ success: boolean }>("/auth/logout", {
+    request<{ success: boolean }>("/auth/logout", () => ({
       method: "POST",
       ...json({ refreshToken: tokenStorage.getRefresh() }),
-    }),
+    })),
   logoutAll: () =>
     request<{ success: boolean }>("/auth/logout-all", { method: "POST" }),
   notifications: async (
@@ -348,7 +396,7 @@ export const api = {
     body: Partial<{
       name: string;
       title: string;
-      description: string;
+      description: string | null;
       type: string;
       priority: string;
       labelIds: string[];

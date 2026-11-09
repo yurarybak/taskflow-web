@@ -104,8 +104,13 @@ export function TaskForm({
       }
       const body = {
         title,
-        // The API rejects an empty description, so a new task omits it.
-        description: initial ? description : description.trim() || undefined,
+        // The API rejects an empty description: a new task omits it and an
+        // edited task clears it with null.
+        description: description.trim()
+          ? description
+          : initial
+            ? null
+            : undefined,
         status,
         priority,
         type,

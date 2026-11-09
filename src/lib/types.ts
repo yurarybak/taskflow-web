@@ -79,7 +79,8 @@ export interface Label {
 export interface Task {
   id: string;
   title: string;
-  description?: string;
+  /** Rich text HTML; `null` clears it (the API rejects an empty string). */
+  description?: string | null;
   status: TaskStatus;
   priority: TaskPriority;
   type: TaskType;

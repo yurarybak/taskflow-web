@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeUser } from "../../test/fixtures";
@@ -16,6 +16,31 @@ describe("ProfilePage", () => {
     renderApp("/profile");
     expect(await screen.findByLabelText("First name")).toHaveValue("Ada");
     expect(within(sidebar()).getByText("Ada")).toBeInTheDocument();
+  });
+
+  it("reloads the sidebar avatar after uploading a new one", async () => {
+    server.use(
+      http.post(apiUrl("/users/me/avatar"), () =>
+        HttpResponse.json({
+          avatarUrl: "http://localhost:3000/users/1/avatar",
+        }),
+      ),
+    );
+    renderApp("/profile");
+    const sidebarAvatar = () =>
+      sidebar().querySelector("img.avatar")?.getAttribute("src");
+    await screen.findByLabelText("First name");
+    expect(sidebarAvatar()).toMatch(/\/avatar$/);
+    const fileInput = screen
+      .getByLabelText("Change avatar")
+      .querySelector("input[type=file]");
+    if (!fileInput) throw new Error("Avatar file input not found");
+    fireEvent.change(fileInput, {
+      target: {
+        files: [new File(["png"], "me.png", { type: "image/png" })],
+      },
+    });
+    await waitFor(() => expect(sidebarAvatar()).toMatch(/\/avatar\?v=1$/));
   });
 
   it("updates the sidebar after saving the profile", async () => {

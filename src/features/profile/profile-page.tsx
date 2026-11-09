@@ -15,8 +15,7 @@ export function ProfilePage() {
 }
 
 function ProfileSettings({ user: data }: { user: User }) {
-  const { updateUser } = useAuth();
-  const [avatarVersion, setAvatarVersion] = useState(0);
+  const { updateUser, avatarVersion, avatarChanged } = useAuth();
   const [firstName, setFirstName] = useState(data.firstName ?? "");
   const [lastName, setLastName] = useState(data.lastName ?? "");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -43,14 +42,14 @@ function ProfileSettings({ user: data }: { user: User }) {
   const upload = useMutation({
     mutationFn: api.uploadAvatar,
     onSuccess: () => {
-      setAvatarVersion((value) => value + 1);
+      avatarChanged();
       toast.success("Avatar uploaded");
     },
   });
   const remove = useMutation({
     mutationFn: api.removeAvatar,
     onSuccess: () => {
-      setAvatarVersion((value) => value + 1);
+      avatarChanged();
       toast.success("Avatar removed");
     },
   });
@@ -70,7 +69,7 @@ function ProfileSettings({ user: data }: { user: User }) {
             <label className="avatar-upload" aria-label="Change avatar">
               <Avatar
                 label={initials(data)}
-                src={`${api.avatarUrl(data.id)}?v=${avatarVersion}`}
+                src={api.avatarUrl(data.id, avatarVersion)}
               />
               <span className="avatar-overlay">
                 <Camera size={18} />

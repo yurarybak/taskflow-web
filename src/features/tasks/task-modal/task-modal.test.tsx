@@ -173,6 +173,26 @@ describe("TaskModal description", () => {
     );
   });
 
+  it("clears the description with null, since the API rejects an empty string", async () => {
+    let sent: unknown;
+    server.use(
+      http.patch(
+        apiUrl("/projects/:projectId/tasks/:taskId"),
+        async ({ request }) => {
+          sent = await request.json();
+          return HttpResponse.json(makeTask({ description: null }));
+        },
+      ),
+    );
+    const dialog = await openTask();
+    fireEvent.click(await within(dialog).findByText("Add a description..."));
+    await within(dialog).findByRole("textbox", {
+      name: "Add a description...",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(sent).toEqual({ description: null }));
+  });
+
   it("cancels the description edit on Escape and keeps the modal open", async () => {
     const dialog = await openTask();
     fireEvent.click(await within(dialog).findByText("Add a description..."));

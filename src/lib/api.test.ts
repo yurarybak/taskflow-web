@@ -982,6 +982,82 @@ describe("api session refresh", () => {
     expect(tokenStorage.getRefresh()).toBe("refresh-token");
   });
 
+  it("logs out with the rotated refresh token after refreshing an expired session", async () => {
+    tokenStorage.set("expired", "refresh-1");
+    const logoutBodies: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init: RequestInit) => {
+        if (url.endsWith("/auth/refresh"))
+          return Promise.resolve(
+            response(200, { ...session, refreshToken: "refresh-2" }),
+          );
+        logoutBodies.push(JSON.parse(init.body as string));
+        return Promise.resolve(
+          logoutBodies.length === 1
+            ? response(401, { message: "Unauthorized" })
+            : response(200, { success: true }),
+        );
+      }),
+    );
+    await api.logout();
+    expect(logoutBodies).toEqual([
+      { refreshToken: "refresh-1" },
+      { refreshToken: "refresh-2" },
+    ]);
+  });
+
+  it("does not refresh the session when login credentials are wrong", async () => {
+    tokenStorage.set("old", "refresh-token");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(response(401, { message: "Invalid credentials" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      api.login({ email: "me@example.com", password: "wrong" }),
+    ).rejects.toMatchObject({ status: 401, message: "Invalid credentials" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(tokenStorage.getRefresh()).toBe("refresh-token");
+  });
+
+  it("refreshes inside a Web Lock and reads the token stored by another tab", async () => {
+    tokenStorage.set("old", "refresh-1");
+    const request = vi.fn((_name: string, run: () => Promise<unknown>) => {
+      // Another tab rotated the token while this one waited for the lock.
+      localStorage.setItem(tokenStorage.refreshKey, "refresh-from-other-tab");
+      return run();
+    });
+    vi.stubGlobal("navigator", { locks: { request } });
+    const fetchMock = vi
+      .fn<(url: string, init: RequestInit) => Promise<Response>>()
+      .mockResolvedValue(response(200, session));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.bootstrap();
+    expect(request).toHaveBeenCalledWith(
+      "taskflow.refresh",
+      expect.any(Function),
+    );
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      refreshToken: "refresh-from-other-tab",
+    });
+  });
+
+  it("ends the session when another tab signs out", () => {
+    tokenStorage.set("access", "refresh-token");
+    const listener = vi.fn();
+    const unsubscribe = onSessionExpired(listener);
+    localStorage.removeItem(tokenStorage.refreshKey);
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: tokenStorage.refreshKey,
+        newValue: null,
+      }),
+    );
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(tokenStorage.getAccess()).toBeNull();
+    unsubscribe();
+  });
+
   it("sends task pagination together with filters", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, [])));
     await api.tasks(

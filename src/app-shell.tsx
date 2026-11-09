@@ -197,12 +197,12 @@ function NotificationsCenter() {
 
 export function AppShell() {
   const [open, setOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, avatarVersion } = useAuth();
   const { data } = useQuery({
     queryKey: keys.workspaces,
     queryFn: api.workspaces,
   });
-  const avatarUrl = user ? api.avatarUrl(user.id) : undefined;
+  const avatarUrl = user ? api.avatarUrl(user.id, avatarVersion) : undefined;
   return (
     <div className="app-shell">
       <aside className={open ? "sidebar open" : "sidebar"}>
