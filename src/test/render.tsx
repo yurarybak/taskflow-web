@@ -1,16 +1,15 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { Toaster } from "sonner";
 import { routes } from "../app";
 import { AuthProvider } from "../features/auth/auth-provider";
+import { createQueryClient } from "../lib/query-client";
 
 export const createTestQueryClient = () =>
-  new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Infinity },
-      mutations: { retry: false },
-    },
+  createQueryClient({
+    queries: { retry: false, staleTime: Infinity },
+    mutations: { retry: false },
   });
 
 /** Renders the real route tree at `path` with fresh providers. */

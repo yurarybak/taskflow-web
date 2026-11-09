@@ -61,6 +61,7 @@ import {
 } from "../../components/ui";
 import { api } from "../../lib/api";
 import { keys } from "../../lib/query-keys";
+import { sanitizeRichText } from "../../lib/sanitize";
 import { initials, personName } from "../../lib/utils";
 import type {
   Label,
@@ -83,6 +84,8 @@ import type {
   TaskTemplate,
 } from "../../lib/types";
 
+// The API rejects page sizes above 100.
+const TASKS_PAGE_SIZE = 100;
 const statuses: TaskStatus[] = ["TODO", "IN_PROGRESS", "DONE"];
 const priorities: TaskPriority[] = ["LOW", "MEDIUM", "HIGH"];
 const types: TaskType[] = ["TASK", "BUG", "FEATURE", "IMPROVEMENT"];
@@ -292,12 +295,6 @@ const saveBlobFile = (blob: Blob, fileName: string) => {
   URL.revokeObjectURL(url);
 };
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const sanitizeRichText = (value: string) =>
-  value
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-    .replace(/\son\w+="[^"]*"/gi, "")
-    .replace(/\son\w+='[^']*'/gi, "")
-    .replace(/javascript:/gi, "");
 function DatePickerField({
   value,
   disabled,
@@ -451,7 +448,6 @@ function TaskForm({
       toast.success(initial ? "Task updated" : "Task created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
   });
   const renderTemplatePreview = (template: TaskTemplate) => (
     <div className="task-template-preview">
@@ -798,7 +794,6 @@ function Comments({
       refresh();
       toast.success("Comment updated");
     },
-    onError: (e) => toast.error(e.message),
   });
   const remove = useMutation({
     mutationFn: (commentId: string) => api.removeComment(taskId, commentId),
@@ -808,7 +803,6 @@ function Comments({
       client.invalidateQueries({ queryKey: keys.activity(taskId) });
       toast.success("Comment deleted");
     },
-    onError: (e) => toast.error(e.message),
   });
   return (
     <section>
@@ -983,7 +977,6 @@ function Checklist({ taskId }: { taskId: string }) {
       setTitle("");
       refresh();
     },
-    onError: (e) => toast.error(e.message),
   });
   const update = useMutation({
     mutationFn: () =>
@@ -995,18 +988,15 @@ function Checklist({ taskId }: { taskId: string }) {
       setEditingTitle("");
       refresh();
     },
-    onError: (e) => toast.error(e.message),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api.removeChecklistItem(taskId, id),
     onSuccess: refresh,
-    onError: (e) => toast.error(e.message),
   });
   const toggle = useMutation({
     mutationFn: (item: ChecklistItem) =>
       api.toggleChecklistItem(taskId, item.id, !item.isCompleted),
     onSuccess: refresh,
-    onError: (e) => toast.error(e.message),
   });
   const reorder = useMutation({
     mutationFn: async ({
@@ -1041,7 +1031,6 @@ function Checklist({ taskId }: { taskId: string }) {
       );
     },
     onSuccess: refresh,
-    onError: (e) => toast.error(e.message),
   });
   const previewDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
     event.preventDefault();
@@ -1351,7 +1340,6 @@ function TimeTrackingDialog({
       onClose();
       toast.success("Work logged");
     },
-    onError: (e) => toast.error(e.message),
   });
   const timeSpentError =
     timeSpent.trim() && parsedTimeSpent.error
@@ -1517,7 +1505,6 @@ function WorklogEditDialog({
       );
       toast.success("Worklog updated");
     },
-    onError: (e) => toast.error(e.message),
   });
   return (
     <Dialog open title="Edit worklog" onClose={onClose}>
@@ -1656,7 +1643,6 @@ function WorklogList({
       refresh();
       toast.success("Worklog deleted");
     },
-    onError: (e) => toast.error(e.message),
   });
   useEffect(() => {
     if (!hasNextPage || !loadMoreRef.current) return;
@@ -2205,7 +2191,6 @@ function TaskReminders({ task }: { task: Task }) {
       closeReminderDialog();
       toast.success(editingReminder ? "Reminder updated" : "Reminder created");
     },
-    onError: (e) => toast.error(e.message),
   });
   const removeReminder = useMutation({
     mutationFn: (id: string) => api.removeReminder(task.id, id),
@@ -2213,7 +2198,6 @@ function TaskReminders({ task }: { task: Task }) {
       refresh();
       toast.success("Reminder deleted");
     },
-    onError: (e) => toast.error(e.message),
   });
   const tomorrowNine = () => {
     const value = new Date();
@@ -2393,12 +2377,10 @@ function WatchersPopover({
   const watchMe = useMutation({
     mutationFn: () => api.watchMe(taskId),
     onSuccess: refresh,
-    onError: (e) => toast.error(e.message),
   });
   const unwatchMe = useMutation({
     mutationFn: () => api.unwatchMe(taskId),
     onSuccess: refresh,
-    onError: (e) => toast.error(e.message),
   });
   const addWatcher = useMutation({
     mutationFn: (userId: string) => api.addWatcher(taskId, userId),
@@ -2406,12 +2388,10 @@ function WatchersPopover({
       setAdding(false);
       refresh();
     },
-    onError: (e) => toast.error(e.message),
   });
   const removeWatcher = useMutation({
     mutationFn: (userId: string) => api.removeWatcher(taskId, userId),
     onSuccess: refresh,
-    onError: (e) => toast.error(e.message),
   });
   useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -2569,7 +2549,6 @@ function TaskModal({
       invalidate();
       toast.success("Task updated");
     },
-    onError: (e) => toast.error(e.message),
   });
   const saveTitle = useMutation({
     mutationFn: () => api.updateTask(projectId, task.id, { title }),
@@ -2579,7 +2558,6 @@ function TaskModal({
       invalidate();
       toast.success("Task updated");
     },
-    onError: (e) => toast.error(e.message),
   });
   const updateModalStatus = useMutation({
     mutationFn: (status: TaskStatus) =>
@@ -2589,7 +2567,6 @@ function TaskModal({
       invalidate();
       toast.success("Status updated");
     },
-    onError: (e) => toast.error(e.message),
   });
   const updateModalField = useMutation({
     mutationFn: (
@@ -2611,7 +2588,6 @@ function TaskModal({
       invalidate();
       toast.success("Task updated");
     },
-    onError: (e) => toast.error(e.message),
   });
   const updateAssignee = useMutation({
     mutationFn: (assigneeId: string | null) =>
@@ -2621,7 +2597,6 @@ function TaskModal({
       invalidate();
       toast.success("Assignee updated");
     },
-    onError: (e) => toast.error(e.message),
   });
   const updateMilestone = useMutation({
     mutationFn: (milestoneId: string | null) =>
@@ -2631,7 +2606,6 @@ function TaskModal({
       invalidate();
       toast.success("Milestone updated");
     },
-    onError: (e) => toast.error(e.message),
   });
   const toggleArchive = useMutation({
     mutationFn: () =>
@@ -2643,7 +2617,6 @@ function TaskModal({
       invalidate();
       toast.success(updated.archivedAt ? "Task archived" : "Task unarchived");
     },
-    onError: (e) => toast.error(e.message),
   });
   const toggleFlag = useMutation({
     mutationFn: () =>
@@ -2655,7 +2628,6 @@ function TaskModal({
       invalidate();
       toast.success(updated.flaggedAt ? "Flag added" : "Flag removed");
     },
-    onError: (e) => toast.error(e.message),
   });
   const cloneTask = useMutation({
     mutationFn: () => api.cloneTask(projectId, task.id),
@@ -2664,7 +2636,6 @@ function TaskModal({
       invalidate();
       toast.success("Task cloned");
     },
-    onError: (e) => toast.error(e.message),
   });
   const exportTaskCsv = useMutation({
     mutationFn: async () => {
@@ -2713,7 +2684,6 @@ function TaskModal({
       onClose();
       toast.success("Task deleted");
     },
-    onError: (e) => toast.error(e.message),
   });
   const cancelEdit = () => {
     setTitle(task.title);
@@ -3270,7 +3240,6 @@ function MilestoneForm({
       toast.success(initial ? "Milestone updated" : "Milestone created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
   });
   return (
     <form
@@ -3355,7 +3324,6 @@ function MilestonesTab({ projectId }: { projectId: string }) {
       refresh();
       toast.success("Milestone deleted");
     },
-    onError: (e) => toast.error(e.message),
   });
   const toggleComplete = useMutation({
     mutationFn: (milestone: Milestone) =>
@@ -3368,7 +3336,6 @@ function MilestonesTab({ projectId }: { projectId: string }) {
         updated.completedAt ? "Milestone completed" : "Milestone reopened",
       );
     },
-    onError: (e) => toast.error(e.message),
   });
   const milestones = [...(data ?? [])].sort((a, b) => {
     if (a.completedAt && !b.completedAt) return 1;
@@ -3612,7 +3579,6 @@ function TaskExportsDialog({
       invalidate();
       toast.success("Task export started");
     },
-    onError: (e) => toast.error(e.message),
   });
   const removeExport = useMutation({
     mutationFn: (id: string) => api.removeTaskExport(projectId, id),
@@ -3620,7 +3586,6 @@ function TaskExportsDialog({
       invalidate();
       toast.success("Task export deleted");
     },
-    onError: (e) => toast.error(e.message),
   });
   const cancelExport = useMutation({
     mutationFn: (id: string) => api.cancelTaskExport(projectId, id),
@@ -3628,7 +3593,6 @@ function TaskExportsDialog({
       invalidate();
       toast.success("Task export cancelled");
     },
-    onError: (e) => toast.error(e.message),
   });
   const retryExport = useMutation({
     mutationFn: (id: string) => api.retryTaskExport(projectId, id),
@@ -3636,7 +3600,6 @@ function TaskExportsDialog({
       invalidate();
       toast.success("Task export restarted");
     },
-    onError: (e) => toast.error(e.message),
   });
   const downloadExport = useMutation({
     mutationFn: async (taskExport: TaskExport) => {
@@ -3649,7 +3612,6 @@ function TaskExportsDialog({
         fileName || taskExport.fileName || "taskflow-tasks.csv",
       );
     },
-    onError: (e) => toast.error(e.message),
   });
   const exports = data?.data ?? [];
   const filterButtonLabel = (label: string, count: number) =>
@@ -4303,7 +4265,6 @@ export function ProjectPage() {
       setSaveFilterName("");
       toast.success("Filter saved");
     },
-    onError: (e) => toast.error(e.message),
   });
   const updateSavedFilter = useMutation({
     mutationFn: () => {
@@ -4326,7 +4287,6 @@ export function ProjectPage() {
       setEditFilterUsesCurrent(false);
       toast.success("Saved filter updated");
     },
-    onError: (e) => toast.error(e.message),
   });
   const removeSavedFilter = useMutation({
     mutationFn: () => {
@@ -4342,23 +4302,39 @@ export function ProjectPage() {
       setDeleteFilter(undefined);
       toast.success("Saved filter deleted");
     },
-    onError: (e) => toast.error(e.message),
   });
-  const { data, isLoading, error } = useQuery({
+  const {
+    data,
+    isLoading,
+    error,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: keys.tasks(projectId, filters),
-    queryFn: () => api.tasks(projectId, filters),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      api.tasks(projectId, filters, {
+        page: pageParam,
+        limit: TASKS_PAGE_SIZE,
+      }),
+    getNextPageParam: (lastPage) =>
+      lastPage.meta.page < lastPage.meta.totalPages
+        ? lastPage.meta.page + 1
+        : undefined,
   });
+  const tasks = data?.pages.flatMap((page) => page.data) ?? [];
+  const totalTasks = data?.pages.at(-1)?.meta.total ?? tasks.length;
   const updateStatus = useMutation({
     mutationFn: ({ task, status }: { task: Task; status: TaskStatus }) =>
       api.updateTask(projectId, task.id, { status }),
     onSuccess: () =>
       client.invalidateQueries({ queryKey: ["tasks", projectId] }),
-    onError: (e) => toast.error(e.message),
   });
   const handleDrop = (event: DragEvent<HTMLElement>, status: TaskStatus) => {
     event.preventDefault();
     const taskId = event.dataTransfer.getData("text/plain") || draggedTaskId;
-    const task = data?.data.find((candidate) => candidate.id === taskId);
+    const task = tasks.find((candidate) => candidate.id === taskId);
     setDraggedTaskId(null);
     setDropTarget(null);
     if (!task || task.status === status) return;
@@ -4846,7 +4822,7 @@ export function ProjectPage() {
             <Skeleton />
           ) : error ? (
             <Empty title="Could not load tasks" detail={error.message} />
-          ) : !data?.data.length ? (
+          ) : !tasks.length ? (
             <Empty
               title="No matching tasks"
               detail="Create a task or adjust your filters."
@@ -4878,10 +4854,10 @@ export function ProjectPage() {
                   <header>
                     <strong>{statusLabel(status)}</strong>
                     <Badge>
-                      {data.data.filter((x) => x.status === status).length}
+                      {tasks.filter((x) => x.status === status).length}
                     </Badge>
                   </header>
-                  {data.data
+                  {tasks
                     .filter((x) => x.status === status)
                     .map((task) => (
                       <div
@@ -4897,7 +4873,22 @@ export function ProjectPage() {
             </div>
           ) : (
             <div className="task-list">
-              {data.data.map((task) => taskRow(task))}
+              {tasks.map((task) => taskRow(task))}
+            </div>
+          )}
+          {hasNextPage && (
+            <div className="tasks-load-more">
+              <span>
+                Showing {tasks.length} of {totalTasks} tasks
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                loading={isFetchingNextPage}
+                onClick={() => fetchNextPage()}
+              >
+                Load more tasks
+              </Button>
             </div>
           )}
           <Dialog

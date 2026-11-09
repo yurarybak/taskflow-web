@@ -91,7 +91,6 @@ function WorkspaceForm({
       toast.success(initial ? "Workspace updated" : "Workspace created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
   });
   return (
     <form
@@ -210,7 +209,6 @@ function ProjectForm({
       toast.success(initial ? "Project updated" : "Project created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
   });
   return (
     <form
@@ -379,7 +377,6 @@ function MembersTab({ workspaceId }: { workspaceId: string }) {
       refresh();
       toast.success("Member added");
     },
-    onError: (e) => toast.error(e.message),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api.removeMember(workspaceId, id),
@@ -610,7 +607,6 @@ function TaskTemplateForm({
       toast.success(initial ? "Template updated" : "Template created");
       onClose();
     },
-    onError: (e) => toast.error(e.message),
   });
   return (
     <form
@@ -806,7 +802,6 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
       invalidate("task-templates", workspaceId);
       toast.success("Template deleted");
     },
-    onError: (e) => toast.error(e.message),
   });
   const bulkDelete = useMutation({
     mutationFn: () =>
@@ -817,7 +812,6 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
       invalidate("task-templates", workspaceId);
       toast.success("Templates deleted");
     },
-    onError: (e) => toast.error(e.message),
   });
   const duplicate = useMutation({
     mutationFn: (template: TaskTemplate) =>
@@ -826,7 +820,6 @@ function TaskTemplatesTab({ workspaceId }: { workspaceId: string }) {
       invalidate("task-templates", workspaceId);
       toast.success("Template duplicated");
     },
-    onError: (e) => toast.error(e.message),
   });
   return (
     <>

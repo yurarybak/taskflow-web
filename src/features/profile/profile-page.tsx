@@ -42,7 +42,6 @@ export function ProfilePage() {
       setAvatarVersion((value) => value + 1);
       toast.success("Avatar uploaded");
     },
-    onError: (e) => toast.error(e.message),
   });
   const remove = useMutation({
     mutationFn: api.removeAvatar,

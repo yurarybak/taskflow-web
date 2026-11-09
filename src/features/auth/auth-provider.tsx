@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
   useContext,
@@ -5,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api } from "../../lib/api";
+import { api, ApiError, onSessionExpired } from "../../lib/api";
 import { tokenStorage } from "../../lib/token-storage";
 import type { AuthResponse, User } from "../../lib/types";
 
@@ -24,22 +25,49 @@ interface AuthValue {
 const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const client = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // Cached queries belong to the previous session, so they never outlive it.
+  const endSession = () => {
+    tokenStorage.clear();
+    client.clear();
+    setUser(null);
+  };
   const applyAuth = (auth: AuthResponse) => {
+    client.clear();
     tokenStorage.set(auth.accessToken, auth.refreshToken);
     setUser(auth.user);
   };
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        client.clear();
+        setUser(null);
+      }),
+    [client],
+  );
   useEffect(() => {
+    let active = true;
     (async () => {
       try {
-        if (await api.bootstrap()) setUser(await api.me());
-      } catch {
-        tokenStorage.clear();
+        // StrictMode runs this effect twice; api.bootstrap shares one refresh
+        // between the runs and only the active run loads the user.
+        if (!(await api.bootstrap()) || !active) return;
+        const me = await api.me();
+        if (active) setUser(me);
+      } catch (error) {
+        // Keep the refresh token on network or server errors so a reload
+        // can restore the session once the backend is reachable again.
+        if (error instanceof ApiError && error.status === 401)
+          tokenStorage.clear();
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     })();
+    return () => {
+      active = false;
+    };
   }, []);
   const login = async (input: { email: string; password: string }) =>
     applyAuth(await api.login(input));
@@ -53,8 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await (all ? api.logoutAll() : api.logout());
     } finally {
-      tokenStorage.clear();
-      setUser(null);
+      endSession();
     }
   };
   return (

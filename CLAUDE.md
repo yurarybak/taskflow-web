@@ -27,11 +27,14 @@ React 19 + TypeScript SPA built with Vite. Server state goes through TanStack Qu
 ### Data layer (`src/lib/`)
 
 - **`api.ts`**: the single typed REST adapter. Every backend call is a method on the exported `api` object. Components never call `fetch` directly.
-  - `request<T>()` attaches the bearer token. On a 401 it runs one shared refresh (a module-level `refreshPromise`, so concurrent 401s refresh once) and retries the request once. Non-OK responses throw `ApiError(status, message)`, joining NestJS-style `message` arrays. A 204 returns `undefined`.
+  - `request<T>()` attaches the bearer token. On a 401 it calls `refreshOnce()` (one shared refresh, so concurrent 401s and the StrictMode double bootstrap refresh once) and retries the request once. Non-OK responses throw `ApiError(status, message)`, joining NestJS-style `message` arrays. A 204 returns `undefined`.
+  - **Session expiry**: only a 401/403 from `/auth/refresh` ends the session. It clears the tokens and fires `onSessionExpired` listeners (`AuthProvider` subscribes, clears the query cache and drops the user, so `Protected` redirects to `/login`). Network and 5xx errors are thrown and keep the refresh token.
   - `requestBlob()` does the same for file downloads (task CSV exports) and reads the filename from `Content-Disposition`.
   - **Response normalization**: list endpoints may return either a bare array or `Page<T>` (`{data, meta}`). `normalizePage` / `normalizeList` turn either into one shape, and `normalizeTask` defaults `labels` to `[]`. New list/task endpoints should go through these helpers.
   - `query()` builds query strings: arrays are comma-joined, and `undefined`, `""` and `false` are dropped.
-- **`token-storage.ts`**: the access token lives only in memory. The refresh token is in `localStorage` (`taskflow.refreshToken`). On page load, `AuthProvider` calls `api.bootstrap()` (a refresh), then `api.me()`.
+- **`token-storage.ts`**: the access token lives only in memory. The refresh token is in `localStorage` (`taskflow.refreshToken`). On page load, `AuthProvider` calls `api.bootstrap()` (a refresh), then `api.me()`. Login, register and logout all call `queryClient.clear()` so no cached data crosses sessions.
+- **`query-client.ts`**: `createQueryClient()` is used by `main.tsx` and the tests. Its `MutationCache.onError` shows `toast.error` for any mutation **without its own `onError`**, so don't add `onError: (e) => toast.error(e.message)` by hand; write `onError` only when a mutation needs extra error handling.
+- **`sanitize.ts`**: `sanitizeRichText()` (DOMPurify, allowlist of formatting tags, no attributes). Any HTML from the API must go through it before `dangerouslySetInnerHTML` or `innerHTML`.
 - **`query-keys.ts`**: central factory for all query keys. Use `keys.*` for queries and invalidation. Some invalidations use prefix keys such as `["tasks", projectId]` to hit every filter variant.
 - **`types.ts`**: frontend DTOs that mirror the API.
 
@@ -47,7 +50,9 @@ Each feature is one or two large files that hold many private components, not a 
 - **`workspaces/workspace-pages.tsx`**: the workspaces list, plus a workspace page with Projects, Members, Labels and Task Templates tabs.
 - **`profile/`** and **`auth/`**: auth forms use react-hook-form with zod (`zodResolver`). Most other forms use local `useState`.
 
-Typical mutation pattern: `useMutation` → `client.invalidateQueries({ queryKey: keys.… })` → `toast.success/error` (sonner).
+Typical mutation pattern: `useMutation` → `onSuccess`: `client.invalidateQueries({ queryKey: keys.… })` + `toast.success` (sonner). Errors are toasted globally (see `query-client.ts`).
+
+The project task list is a `useInfiniteQuery` with pages of 100 (`TASKS_PAGE_SIZE`, the API maximum) and a "Load more tasks" button.
 
 ### UI and styling
 

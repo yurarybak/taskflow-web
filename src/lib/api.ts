@@ -37,6 +37,29 @@ export class ApiError extends Error {
   }
 }
 
+const sessionExpiredListeners = new Set<() => void>();
+
+/** Subscribes to the moment the backend rejects the refresh token. Returns an unsubscribe function. */
+export function onSessionExpired(listener: () => void) {
+  sessionExpiredListeners.add(listener);
+  return () => {
+    sessionExpiredListeners.delete(listener);
+  };
+}
+
+async function readErrorMessage(response: Response) {
+  const body = await response.json().catch(() => ({}));
+  const message = Array.isArray(body.message)
+    ? body.message.join(", ")
+    : body.message;
+  return (message as string | undefined) || "Something went wrong";
+}
+
+/**
+ * Exchanges the refresh token for a new session. Resolves to `false` (and
+ * clears the tokens) only when the backend rejects the token; network and
+ * server errors are thrown so a temporary outage does not sign the user out.
+ */
 async function refreshSession() {
   const refreshToken = tokenStorage.getRefresh();
   if (!refreshToken) return false;
@@ -45,13 +68,24 @@ async function refreshSession() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
   });
-  if (!response.ok) {
+  if (response.status === 401 || response.status === 403) {
     tokenStorage.clear();
+    sessionExpiredListeners.forEach((listener) => listener());
     return false;
   }
+  if (!response.ok)
+    throw new ApiError(response.status, await readErrorMessage(response));
   const auth = (await response.json()) as AuthResponse;
   tokenStorage.set(auth.accessToken, auth.refreshToken);
   return true;
+}
+
+/** Runs one refresh at a time; concurrent callers share the same promise. */
+function refreshOnce() {
+  refreshPromise ||= refreshSession().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
 }
 
 async function request<T>(
@@ -71,18 +105,10 @@ async function request<T>(
     tokenStorage.getRefresh() &&
     path !== "/auth/refresh"
   ) {
-    refreshPromise ||= refreshSession().finally(() => {
-      refreshPromise = null;
-    });
-    if (await refreshPromise) return request<T>(path, init, false);
+    if (await refreshOnce()) return request<T>(path, init, false);
   }
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const message = Array.isArray(body.message)
-      ? body.message.join(", ")
-      : body.message;
-    throw new ApiError(response.status, message || "Something went wrong");
-  }
+  if (!response.ok)
+    throw new ApiError(response.status, await readErrorMessage(response));
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
@@ -97,18 +123,10 @@ async function requestBlob(path: string, init: RequestInit = {}, retry = true) {
     tokenStorage.getRefresh() &&
     path !== "/auth/refresh"
   ) {
-    refreshPromise ||= refreshSession().finally(() => {
-      refreshPromise = null;
-    });
-    if (await refreshPromise) return requestBlob(path, init, false);
+    if (await refreshOnce()) return requestBlob(path, init, false);
   }
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const message = Array.isArray(body.message)
-      ? body.message.join(", ")
-      : body.message;
-    throw new ApiError(response.status, message || "Something went wrong");
-  }
+  if (!response.ok)
+    throw new ApiError(response.status, await readErrorMessage(response));
   const disposition = response.headers.get("Content-Disposition") || "";
   const fileName =
     disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1] ||
@@ -157,7 +175,7 @@ const normalizeTaskPage = (response: Page<Task> | Task[]): Page<Task> => {
 };
 
 export const api = {
-  bootstrap: refreshSession,
+  bootstrap: refreshOnce,
   login: (body: { email: string; password: string }) =>
     request<AuthResponse>("/auth/login", { method: "POST", ...json(body) }),
   register: (body: {
@@ -412,10 +430,14 @@ export const api = {
       `/projects/${projectId}/saved-filters/${id}`,
       { method: "DELETE" },
     ),
-  tasks: async (projectId: string, filters: TaskFilters = {}) =>
+  tasks: async (
+    projectId: string,
+    filters: TaskFilters = {},
+    pagination: { page?: number; limit?: number } = {},
+  ) =>
     normalizeTaskPage(
       await request<Page<Task> | Task[]>(
-        `/projects/${projectId}/tasks${query({ ...filters })}`,
+        `/projects/${projectId}/tasks${query({ ...filters, ...pagination })}`,
       ),
     ),
   taskExports: async (

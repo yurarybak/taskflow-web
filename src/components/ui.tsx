@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { LoaderCircle, X } from "lucide-react";
+import { sanitizeRichText } from "../lib/sanitize";
 import { cn } from "../lib/utils";
 
 export const Button = ({
@@ -211,8 +212,9 @@ export const RichTextEditor = ({
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    // `value` can come from the API, so it is sanitized before it reaches the DOM.
     if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value;
+      editorRef.current.innerHTML = sanitizeRichText(value);
     }
   }, [value]);
   const run = (command: string) => {

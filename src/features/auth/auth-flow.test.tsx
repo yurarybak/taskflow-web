@@ -2,6 +2,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { tokenStorage } from "../../lib/token-storage";
+import { makeAuth, makePage, makeWorkspace } from "../../test/fixtures";
 import { apiUrl, server } from "../../test/server";
 import { renderApp } from "../../test/render";
 
@@ -58,6 +59,43 @@ describe("auth flow", () => {
     localStorage.setItem("taskflow.refreshToken", "stored-refresh");
     renderApp("/");
     fireEvent.click(await screen.findByRole("button", { name: /sign out/i }));
+    expect(
+      await screen.findByRole("heading", { name: "Welcome back" }),
+    ).toBeInTheDocument();
+    expect(tokenStorage.getRefresh()).toBeNull();
+  });
+
+  it("does not show cached data from the previous session after signing in again", async () => {
+    localStorage.setItem("taskflow.refreshToken", "stored-refresh");
+    renderApp("/");
+    expect((await screen.findAllByText("Acme")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+    await screen.findByRole("heading", { name: "Welcome back" });
+
+    server.use(
+      http.get(apiUrl("/workspaces"), () =>
+        HttpResponse.json(makePage([makeWorkspace({ name: "Beta Corp" })])),
+      ),
+    );
+    fillLogin("grace@example.com", "correct-password");
+    expect((await screen.findAllByText("Beta Corp")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Acme")).not.toBeInTheDocument();
+  });
+
+  it("returns to the login page when the session can no longer be refreshed", async () => {
+    localStorage.setItem("taskflow.refreshToken", "stored-refresh");
+    let refreshCalls = 0;
+    server.use(
+      http.post(apiUrl("/auth/refresh"), () =>
+        ++refreshCalls === 1
+          ? HttpResponse.json(makeAuth())
+          : HttpResponse.json({ message: "Expired" }, { status: 401 }),
+      ),
+      http.get(apiUrl("/workspaces"), () =>
+        HttpResponse.json({ message: "Unauthorized" }, { status: 401 }),
+      ),
+    );
+    renderApp("/");
     expect(
       await screen.findByRole("heading", { name: "Welcome back" }),
     ).toBeInTheDocument();

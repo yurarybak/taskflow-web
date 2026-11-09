@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "./api";
+import { api, ApiError, onSessionExpired } from "./api";
 import { tokenStorage } from "./token-storage";
 
 const response = (status: number, body: unknown) =>
@@ -900,6 +900,78 @@ describe("api authentication", () => {
   it("builds the public user avatar route", () => {
     expect(api.avatarUrl("user-1")).toBe(
       "http://localhost:3000/users/user-1/avatar",
+    );
+  });
+});
+
+describe("api session refresh", () => {
+  beforeEach(() => tokenStorage.clear());
+  afterEach(() => vi.unstubAllGlobals());
+
+  const session = {
+    accessToken: "new-access",
+    refreshToken: "new-refresh",
+    user: { id: "1", email: "me@example.com" },
+  };
+
+  it("shares one refresh request between concurrent bootstraps", async () => {
+    tokenStorage.set("old", "refresh-token");
+    const fetchMock = vi.fn().mockResolvedValue(response(200, session));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      Promise.all([api.bootstrap(), api.bootstrap()]),
+    ).resolves.toEqual([true, true]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies session listeners when the refresh token is rejected", async () => {
+    tokenStorage.set("old", "invalid");
+    const listener = vi.fn();
+    const unsubscribe = onSessionExpired(listener);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(response(401, { message: "Unauthorized" }))
+        .mockResolvedValueOnce(response(401, { message: "Invalid token" })),
+    );
+    await expect(api.workspaces()).rejects.toMatchObject({ status: 401 });
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(tokenStorage.getRefresh()).toBeNull();
+    unsubscribe();
+  });
+
+  it("keeps the refresh token when the refresh endpoint fails with a server error", async () => {
+    tokenStorage.set("old", "refresh-token");
+    const listener = vi.fn();
+    const unsubscribe = onSessionExpired(listener);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(response(503, { message: "Unavailable" })),
+    );
+    await expect(api.bootstrap()).rejects.toBeInstanceOf(ApiError);
+    expect(tokenStorage.getRefresh()).toBe("refresh-token");
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it("keeps the refresh token when the network is down", async () => {
+    tokenStorage.set("old", "refresh-token");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+    await expect(api.bootstrap()).rejects.toThrow("offline");
+    expect(tokenStorage.getRefresh()).toBe("refresh-token");
+  });
+
+  it("sends task pagination together with filters", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, [])));
+    await api.tasks(
+      "project-1",
+      { statuses: ["TODO"] },
+      { page: 2, limit: 100 },
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3000/projects/project-1/tasks?statuses=TODO&page=2&limit=100",
+      expect.anything(),
     );
   });
 });
